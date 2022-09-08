@@ -3,6 +3,7 @@
 # -----------------
 # This is the makefile for the project.
 # It is used to compile the project.
+# This Makefile is host-os-friendly! It should work on Windows, Linux and Mac OS X with correct configurations.
 # -----------------
 # You need to install the following packages first:
 #
