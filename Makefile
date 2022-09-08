@@ -25,25 +25,30 @@ mkfile_dir := $(dir $(mkfile_path))
 PROJECT_NAME := Rarmo
 TARGET := aarch64-unknown-none
 DEFAULT_MODE := debug
-# You only need to modify the path below if you are using Windows.
-MSYS2_PATH := D:/Flutter/msys64
+QEMU_EXECUTABLE := qemu-system-aarch64
+
+# You only need to modify the paths below if you are using Windows.
+MSYS2_ROOT := D:/Flutter/msys64
+QEMU_ROOT := D:/Program Files/qemu
 
 ifeq ($(OS), Windows_NT)
-	SYSBIN := $(MSYS2_PATH)/usr/bin/
+	SYSBIN := $(MSYS2_ROOT)/usr/bin/
 	export RM := del
 	export MCOPY := $(mkfile_dir)boot/mtools/mcopy
-	GDB := $(MSYS2_PATH)/mingw64/bin/gdb-multiarch
+	GDB := $(MSYS2_ROOT)/mingw64/bin/gdb-multiarch
 else
+	QEMU_ROOT :=
 	SYSBIN :=
 	export RM := rm
 	export MCOPY := mcopy
 	GDB := gdb-multiarch
 endif
-
+# Configure the path of other executables.
 export DD := $(SYSBIN)dd
 export SFDISK := $(SYSBIN)sfdisk
 export PRINTF := $(SYSBIN)printf
-export MKFS_VFAT := $(SYSBIN)/mkfs.vfat
+export MKFS_VFAT := $(SYSBIN)mkfs.vfat
+export QEMU := $(QEMU_ROOT)/$(QEMU_EXECUTABLE)
 # -----------------
 
 # -----------------
@@ -76,11 +81,11 @@ boot/sd.img: $(kernel_bin)
 
 .PHONY:run
 run: boot/sd.img
-	qemu-system-aarch64 $(qemu_flags)
+	$(QEMU) $(qemu_flags)
 
 .PHONY:qemu-debug
 qemu-debug: boot/sd.img
-	qemu-system-aarch64 $(qemu_flags) -nographic \
+	$(QEMU) $(qemu_flags) -nographic \
 		-S -gdb tcp::1234
 
 .PHONY:debug
@@ -88,7 +93,7 @@ debug: boot/sd.img
 	$(GDB) --nx --quiet \
 	   -ex "set architecture aarch64" \
 	   -ex "file ${artifact_prefix}" \
-	   -ex "target remote localhost:1234"
+	   -ex "target remote :1234"
 
 .PHONY:clean
 clean:
