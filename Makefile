@@ -1,8 +1,7 @@
 # -----------------
 # START OF MAKEFILE
 # -----------------
-# This is the makefile for the project.
-# It is used to compile the project.
+# This is the Makefile for the project.
 # This Makefile is host-os-friendly! It should work on Windows, Linux and Mac OS X with correct configurations.
 # -----------------
 # You need to install the following packages first:
@@ -31,8 +30,9 @@ TARGET := aarch64-unknown-none
 PLATFORM_SPECIFIC_PATH := $(mkfile_dir)src/aarch64/
 DEFAULT_MODE := debug
 QEMU_EXECUTABLE := qemu-system-aarch64
-
+QEMU_DEBUGGING_PORT := 1234
 # You only need to modify the paths below if you are using Windows.
+# In Linux, you can just leave them as they are or delete these lines.
 MSYS2_ROOT := D:/Flutter/msys64/
 QEMU_ROOT := D:/Program Files/qemu/
 GCC_ROOT := D:/Flutter/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/bin/
@@ -101,14 +101,14 @@ run: boot/sd.img
 .PHONY:qemu-debug
 qemu-debug: boot/sd.img
 	$(QEMU) $(qemu_flags) -nographic \
-		-S -gdb tcp::1234
+		-S -gdb tcp::$(QEMU_DEBUGGING_PORT)
 
 .PHONY:debug
-debug: boot/sd.img
+debug: $(artifact_prefix)
 	$(GDB) --nx --quiet \
 	   -ex "set architecture aarch64" \
-	   -ex "file ${artifact_prefix}" \
-	   -ex "target remote :1234"
+	   -ex "file $(artifact_prefix)" \
+	   -ex "target remote :$(QEMU_DEBUGGING_PORT)"
 
 .PHONY:clean
 clean:
