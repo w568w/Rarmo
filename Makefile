@@ -5,9 +5,11 @@
 # It is used to compile the project.
 # -----------------
 # You need to install the following packages first:
+#
 # Rust
 # MSYS2 (If you are on Windows)
 # mtools (If you are on Linux)
+# ARM cross compiler for aarch64-none-elf (You can grab one provided by ARM or Linaro)
 # pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
 # rustup add component rust-src
 # rustup target add aarch64-unknown-none --toolchain nightly
@@ -18,26 +20,31 @@
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 
+
 # -----------------
 # User defined variables
 # In most cases, you need to check and modify these variables one by one.
 # -----------------
 PROJECT_NAME := Rarmo
 TARGET := aarch64-unknown-none
+PLATFORM_SPECIFIC_PATH := $(mkfile_dir)src/aarch64/
 DEFAULT_MODE := debug
 QEMU_EXECUTABLE := qemu-system-aarch64
 
 # You only need to modify the paths below if you are using Windows.
-MSYS2_ROOT := D:/Flutter/msys64
-QEMU_ROOT := D:/Program Files/qemu
+MSYS2_ROOT := D:/Flutter/msys64/
+QEMU_ROOT := D:/Program Files/qemu/
+GCC_ROOT := D:/Flutter/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/bin/
 
+# The variables below are automatically determined, and in most cases you do not need to modify them.
 ifeq ($(OS), Windows_NT)
-	SYSBIN := $(MSYS2_ROOT)/usr/bin/
+	SYSBIN := $(MSYS2_ROOT)usr/bin/
 	export RM := del
 	export MCOPY := $(mkfile_dir)boot/mtools/mcopy
-	GDB := $(MSYS2_ROOT)/mingw64/bin/gdb-multiarch
+	GDB := $(MSYS2_ROOT)mingw64/bin/gdb-multiarch
 else
 	QEMU_ROOT :=
+	GCC_ROOT :=
 	SYSBIN :=
 	export RM := rm
 	export MCOPY := mcopy
@@ -48,7 +55,8 @@ export DD := $(SYSBIN)dd
 export SFDISK := $(SYSBIN)sfdisk
 export PRINTF := $(SYSBIN)printf
 export MKFS_VFAT := $(SYSBIN)mkfs.vfat
-export QEMU := $(QEMU_ROOT)/$(QEMU_EXECUTABLE)
+export QEMU := $(QEMU_ROOT)$(QEMU_EXECUTABLE)
+export CC := $(GCC_ROOT)aarch64-elf-gcc
 # -----------------
 
 # -----------------
@@ -70,11 +78,17 @@ endif
 .PHONY:all
 all: $(kernel_bin)
 
-$(artifact_prefix):
+src/entry.asm: src/entry.S
+	$(CC) -S $< > $@
+
+$(artifact_prefix): src/entry.asm $(PLATFORM_SPECIFIC_PATH)kernel_pt.o
 	cargo build --target $(TARGET) $(rust_build_mode_arg)
 
 $(kernel_bin): $(artifact_prefix)
 	rust-objcopy --strip-all $< -O binary $@
+
+$(PLATFORM_SPECIFIC_PATH)%.o: $(PLATFORM_SPECIFIC_PATH)%.c
+	$(MAKE) -C $(PLATFORM_SPECIFIC_PATH) $(notdir $@)
 
 boot/sd.img: $(kernel_bin)
 	$(MAKE) -C boot $(notdir $@)
@@ -98,4 +112,6 @@ debug: boot/sd.img
 .PHONY:clean
 clean:
 	-cargo clean
+	-cd src && $(RM) entry.asm && cd ..
 	-$(MAKE) -C boot clean
+	-$(MAKE) -C $(PLATFORM_SPECIFIC_PATH) clean

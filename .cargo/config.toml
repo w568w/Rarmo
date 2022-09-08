@@ -3,5 +3,10 @@ target = "aarch64-unknown-none"
 
 [target.aarch64-unknown-none]
 rustflags = [
-    "-Clink-arg=-Tsrc/linker.ld", "-Cforce-frame-pointers=yes"
+    # Use custom linker script.
+    "-Clink-arg=-Tsrc/linker.ld",
+    # Require the compiler not to omit frame pointers.
+    "-Cforce-frame-pointers=yes",
+    # Tell the linker to link the kernel with some platform-specific objects. They are used in `src/entry.S` and so on.
+    "-Clink-arg=src/aarch64/kernel_pt.o"
 ]
