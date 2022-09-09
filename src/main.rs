@@ -22,7 +22,7 @@ fn panic(_info: &PanicInfo) -> ! {
 pub fn main() -> ! {
     clear_bss();
     let mut console = ConsoleContext::new(UartDevice);
-    let _ = write!(&mut console, "Hello world!");
+    let _ = write!(&mut console, "hello, world!\n");
     loop {}
 }
 
@@ -34,5 +34,7 @@ fn clear_bss() {
         fn sbss();
         fn ebss();
     }
-    (sbss as usize..ebss as usize).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) });
+    let start = sbss as usize;
+    let end = ebss as usize;
+    (start..end).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) });
 }

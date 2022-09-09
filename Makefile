@@ -75,7 +75,9 @@ artifact_prefix := $(rust_build_path)/$(PROJECT_NAME)
 export kernel_bin := $(artifact_prefix).bin
 qemu_flags := -machine raspi3b \
                       -drive "file=boot/sd.img,if=sd,format=raw" \
-                      -kernel "$(kernel_bin)"
+                      -kernel "$(kernel_bin)" \
+                      -serial "null" \
+                      -serial "mon:stdio"
 rust_build_mode_arg := -$(DEFAULT_MODE)
 ifeq ($(DEFAULT_MODE),debug)
 	# We don't need to pass this flag for debug builds.
