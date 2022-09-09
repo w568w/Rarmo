@@ -1,4 +1,15 @@
-/* Check a useful tutorial at https://developer.arm.com/documentation/dui0473/m/writing-arm-assembly-language. */
+/* The entry point for the kernel.
+ * This is the first ASM code that is run.
+ *
+ * Note: It is NOT a raw assembly file. When we use the suffix .S, we are declaring
+ * that this file should be preprocessed by the C preprocessor, generating a .asm file,
+ * which is then assembled by the assembler GAS.
+ * You will notice that we can use C macros, and even C comments, in this file.
+ *
+ * A useful tutorial is at https://developer.arm.com/documentation/dui0473/m/writing-arm-assembly-language.
+ * Note that it is a guidebook for ARM-specific ASM Compiler, and some grammars may differ from GAS.
+ * But it guides you through the basics of writing assembly code.
+ */
 /* SCR_EL3, Secure Configuration Register (EL3). */
 #define SCR_RESERVED (3 << 4)
 #define SCR_RW       (1 << 10)
@@ -133,7 +144,9 @@ el1:
     mov sp, x9
     ldr x9, =main
     br x9
-
+/*
+ * Here we create a space for kernel stack, in bss section.
+ */
 .section ".bss.stack"
 .globl boot_stack
 boot_stack:

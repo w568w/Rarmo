@@ -3,16 +3,21 @@
 # -----------------
 # This is the Makefile for the project.
 # This Makefile is host-os-friendly! It should work on Windows, Linux and Mac OS X with correct configurations.
+#
+# Read README.md first before you start to explore.
 # -----------------
 # You need to install the following packages first:
 #
 # Rust
 # MSYS2 (If you are on Windows)
 # mtools (If you are on Linux)
-# ARM cross compiler for aarch64-none-elf (You can grab one provided by ARM or Linaro)
+# ARM cross compiler for `aarch64-none-elf` (You can grab one provided by ARM or Linaro. See:)
+# -	https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain (Choose `AArch64 bare-metal target`)
+# - https://releases.linaro.org/components/toolchain/binaries/ (Choose the latest gcc version and pick the toolchain under `aarch64-elf`)
+# pacman -S mingw-w64-x86_64-make (In MSYS2, if you are on Windows)
 # pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
-# rustup add component rust-src
-# rustup target add aarch64-unknown-none --toolchain nightly
+# Add the path to mingw32-make.exe to PATH environment variable (if you are on Windows)
+# rustup target add aarch64-unknown-none
 # rustup component add llvm-tools-preview
 # cargo install cargo-binutils
 # -----------------
@@ -42,6 +47,7 @@ ifeq ($(OS), Windows_NT)
 	SYSBIN := $(MSYS2_ROOT)usr/bin/
 	export RM := del
 	export MCOPY := $(mkfile_dir)boot/mtools/mcopy
+	export DELIMITER_CHAR := &
 	GDB := $(MSYS2_ROOT)mingw64/bin/gdb-multiarch
 else
 	QEMU_ROOT :=
@@ -49,6 +55,7 @@ else
 	SYSBIN :=
 	export RM := rm
 	export MCOPY := mcopy
+	export DELIMITER_CHAR := ;
 	GDB := gdb-multiarch
 endif
 # Configure the path of other executables.

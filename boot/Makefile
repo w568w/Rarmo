@@ -16,9 +16,9 @@ BOOT_FILES := $(wildcard *.bin) config.txt $(wildcard *.linux) $(wildcard *.dat)
 boot.img : $(kernel_bin) $(BOOT_FILES)
 	$(DD) if=/dev/zero of=$@ seek=$(call sub,$(n_boot_sectors),1) bs=$(sector_size) count=1
 	$(MKFS_VFAT) -F 32 -s 1 $@
-	$(foreach file,$^,$(MCOPY) -i $@ $(file) ::$(notdir $(file)) &)
+	$(foreach file,$^,$(MCOPY) -i $@ $(file) ::$(notdir $(file)) $(DELIMITER_CHAR))
 
-# Pipeline is not supported on Windows, so we have to use a temporary file.
+# Pipeline is not supported on Windows Powershell, so we have to use a temporary file.
 sd.img: boot.img $(BOOT_FILES)
 	$(DD) if=/dev/zero of=$@ seek=$(call sub,$(n_sectors),1) bs=$(sector_size) count=1
 	$(PRINTF) "$(boot_line)\n$(filesystem_line)\n" > op.txt
