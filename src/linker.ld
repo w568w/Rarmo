@@ -15,6 +15,18 @@ SECTIONS
     }
 
     . = ALIGN(4K);
+    sinit = .;
+    .init : {
+        PROVIDE(early_init = .);
+        KEEP(*(.init.early))
+        PROVIDE(rest_init = .);
+        KEEP(*(.init.rest))
+        PROVIDE(init = .);
+        KEEP(*(.init))
+    }
+    PROVIDE(einit = .);
+
+    . = ALIGN(4K);
     etext = .;
     srodata = .;
     .rodata : {

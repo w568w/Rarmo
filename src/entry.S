@@ -10,6 +10,7 @@
  * Note that it is a guidebook for ARM-specific ASM Compiler, and some grammars may differ from GAS.
  * But it guides you through the basics of writing assembly code.
  */
+
 /* SCR_EL3, Secure Configuration Register (EL3). */
 #define SCR_RESERVED (3 << 4)
 #define SCR_RW       (1 << 10)
@@ -144,6 +145,7 @@ el1:
     mov sp, x9
     ldr x9, =main
     br x9
+
 /*
  * Here we create a space for kernel stack, in bss section.
  */

@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# Spinlock
 spin = "0.9.4"
-volatile = "0.4.5"
+# Identifier concatenation at compile time
+paste = "1.0.9"

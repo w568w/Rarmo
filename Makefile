@@ -11,11 +11,15 @@
 # Rust
 # MSYS2 (If you are on Windows)
 # mtools (If you are on Linux)
-# ARM cross compiler for `aarch64-none-elf` (You can grab one provided by ARM or Linaro. See:)
+# ARM cross compiler for `aarch64-none-elf` (You can grab one provided by ARM or Linaro. See below:)
 # -	https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain (Choose `AArch64 bare-metal target`)
 # - https://releases.linaro.org/components/toolchain/binaries/ (Choose the latest gcc version and pick the toolchain under `aarch64-elf`)
-# pacman -S mingw-w64-x86_64-make (In MSYS2, if you are on Windows)
-# pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
+# make
+# - pacman -S mingw-w64-x86_64-make (In MSYS2, if you are on Windows)
+# - apt install make (If you are on Debian)
+# gdb-multiarch
+# - pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
+# - apt install gdb-multiarch (If you are on Debian)
 # Add the path to mingw32-make.exe to PATH environment variable (if you are on Windows)
 # rustup target add aarch64-unknown-none
 # rustup component add llvm-tools-preview
@@ -42,7 +46,9 @@ MSYS2_ROOT := D:/Flutter/msys64/
 QEMU_ROOT := D:/Program Files/qemu/
 GCC_ROOT := D:/Flutter/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/bin/
 
-# The variables below are automatically determined, and in most cases you do not need to modify them.
+# The variables below are automatically determined, and in most cases you do not need to edit them (if you are on Windows).
+#
+# If some tools cannot be found, you can modify them manually.
 ifeq ($(OS), Windows_NT)
 	SYSBIN := $(MSYS2_ROOT)usr/bin/
 	export RM := del
@@ -68,12 +74,13 @@ export CC := $(GCC_ROOT)aarch64-elf-gcc
 # -----------------
 
 # -----------------
-# Auto generated variables
+# Variables with automatic values
 # -----------------
 rust_build_path := $(mkfile_dir)target/$(TARGET)/$(DEFAULT_MODE)
 artifact_prefix := $(rust_build_path)/$(PROJECT_NAME)
 export kernel_bin := $(artifact_prefix).bin
 qemu_flags := -machine raspi3b \
+					  -nographic \
                       -drive "file=boot/sd.img,if=sd,format=raw" \
                       -kernel "$(kernel_bin)" \
                       -serial "null" \

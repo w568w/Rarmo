@@ -3,6 +3,8 @@ use core::{
     ptr::{read_volatile, write_volatile},
 };
 
+// Some useful functions for `AArch64`.
+
 pub fn delay_us(us: u64) {
     let freq = get_timer_freq();
     let mut end = get_timestamp();
@@ -14,6 +16,21 @@ pub fn delay_us(us: u64) {
             break;
         }
     }
+}
+
+#[inline(always)]
+pub fn stop_cpu() -> ! {
+    loop {
+        unsafe { asm!("wfe"); }
+    }
+}
+
+pub fn get_cpu_id() -> usize {
+    let mut ret: usize;
+    unsafe {
+        asm!("mrs {}, mpidr_el1", out(reg) ret);
+    }
+    ret & 0xff
 }
 
 pub fn get_timer_freq() -> u64 {
@@ -77,8 +94,10 @@ pub mod addr {
     pub const AUX_MU_STAT_REG: u64 = AUX_BASE + 0x64;
     pub const AUX_MU_BAUD_REG: u64 = AUX_BASE + 0x68;
 }
+
 pub mod aux {
     pub const AUX_UART_CLOCK: u32 = 250_000_000;
+
     pub fn AUX_MU_BAUD(bandrate: u32) -> u32 {
         (AUX_UART_CLOCK / ((bandrate) * 8)) - 1
     }

@@ -135,6 +135,4 @@ static inline void arch_yield() {
     asm volatile("yield" ::: "memory");
 }
 
-void delay_us(uint64_t n);
-
 #endif
