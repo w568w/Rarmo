@@ -3,7 +3,7 @@ use core::{
     ptr::{read_volatile, write_volatile},
 };
 
-// Some useful functions for `AArch64`.
+/* Some useful functions for `AArch64`. */
 
 pub fn delay_us(us: u64) {
     let freq = get_timer_freq();
@@ -45,18 +45,60 @@ pub fn get_timer_freq() -> u64 {
     ret
 }
 
+#[inline(always)]
+pub fn isb() {
+    unsafe {
+        asm!("isb", options(nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn dsb_sy() {
+    unsafe {
+        asm!("dsb sy", options(nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn arch_fence() {
+    dsb_sy();
+    isb();
+}
+
+// Why don't we need `::: "memory"` here, like what we did in C?
+// Because Rust's `asm!` macro will automatically add a memory barrier for us. A perfect design!
+// See: https://stackoverflow.com/questions/72823056/how-to-build-a-barrier-by-rust-asm.
+// Only when you add `nomem` option, you are declaring that the assembly code will not access memory.
+//
+// p.s. to understand more about what "barrier" means, see:
+// https://stackoverflow.com/questions/59596654/is-memory-fence-and-memory-barrier-same.
+//
+// There are four kinds of barriers:
+// 1. Atomic fence: controls the order in which observers can see the effects of atomic memory operations.
+// 2. Memory barrier: controls the order of actual operations against memory or memory-mapped I/O.
+//      This is often a bigger hammer that can achieve similar results to an atomic fence, but at higher cost.
+// 3. Compiler fence: controls the order of instructions the compiler generates. This is what `::: "memory"` in C and `compiler_fence` in Rust does.
+// 4. Architectural barrier: controls the order of instructions the CPU executes. This differs in different architectures.
+//      In ARM, it is called "memory barrier" and is implemented by `dmb`(Data Memory Barrier) instruction.
+// Have a look at the ARMv8-A Architecture Reference Manual, https://developer.arm.com/documentation/100941/0101/Barriers.
+// Also, take this discussion about Linux developers' talks on memory barriers as a reference:
+// https://www.kernel.org/doc/Documentation/memory-barriers.txt.
 pub fn get_timestamp() -> u64 {
     let mut ret;
     unsafe {
         asm!(
         "mrs x0, cntpct_el0",
         out("x0") ret,
-        options(nomem, nostack, preserves_flags)
+        options(nostack, preserves_flags)
         );
     };
     ret
 }
 
+
+// For `get/put_*`, there's no need to protect them with architectural
+// barriers, since they are intended to access device memory regions. These
+// regions are already marked as nGnRnE in `kernel_pt`.
 pub fn put_u32(address: u64, value: u32) {
     let ptr = unsafe { &mut *(address as *mut u32) };
     unsafe {

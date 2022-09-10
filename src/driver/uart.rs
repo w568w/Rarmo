@@ -1,10 +1,10 @@
 use core::convert::TryInto;
 
-use crate::aarch64_abi::addr::*;
-use crate::aarch64_abi::aux::*;
-use crate::aarch64_abi::delay_us;
-use crate::aarch64_abi::get_u32;
-use crate::aarch64_abi::put_u32;
+use crate::aarch64::intrinsic::addr::*;
+use crate::aarch64::intrinsic::aux::*;
+use crate::aarch64::intrinsic::delay_us;
+use crate::aarch64::intrinsic::get_u32;
+use crate::aarch64::intrinsic::put_u32;
 
 use super::CharDevice;
 pub struct UartDevice;

@@ -10,3 +10,5 @@ edition = "2021"
 spin = "0.9.4"
 # Identifier concatenation at compile time
 paste = "1.0.9"
+# Aligned memory allocation
+aligned = "0.4.1"

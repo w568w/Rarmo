@@ -98,14 +98,11 @@ all: $(kernel_bin)
 src/entry.asm: src/entry.S
 	$(CC) -S $< > $@
 
-$(artifact_prefix): src/entry.asm $(PLATFORM_SPECIFIC_PATH)kernel_pt.o
+$(artifact_prefix): src/entry.asm
 	cargo build --target $(TARGET) $(rust_build_mode_arg)
 
 $(kernel_bin): $(artifact_prefix)
 	rust-objcopy --strip-all $< -O binary $@
-
-$(PLATFORM_SPECIFIC_PATH)%.o: $(PLATFORM_SPECIFIC_PATH)%.c
-	$(MAKE) -C $(PLATFORM_SPECIFIC_PATH) $(notdir $@)
 
 boot/sd.img: $(kernel_bin)
 	$(MAKE) -C boot $(notdir $@)
