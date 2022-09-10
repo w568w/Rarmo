@@ -1,6 +1,3 @@
-#![feature(concat_idents)]
-#![feature(const_for)]
-#![feature(strict_provenance)]
 #![no_std]
 #![no_main]
 
