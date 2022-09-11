@@ -26,3 +26,25 @@ pub fn do_init() {
         start = unsafe { start.offset(1) };
     }
 }
+
+pub enum StackDirection {
+    // From low address to high address.
+    Up,
+    // From high address to low address.
+    Down,
+}
+
+pub fn check_stack_direction() -> StackDirection {
+    let mut a = 0i32;
+    _check_stack_direction(&mut a)
+}
+
+fn _check_stack_direction(parent: *mut i32) -> StackDirection {
+    let mut b = 1i32;
+    let c = &mut b as *mut i32;
+    if c > parent {
+        StackDirection::Up
+    } else {
+        StackDirection::Down
+    }
+}

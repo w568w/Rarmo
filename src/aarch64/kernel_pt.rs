@@ -5,7 +5,7 @@ use aligned::*;
 // `Aligned` tells the compiler that the memory should be aligned to the specified boundary.
 // `#[no_mangle]` tells the compiler not to mangle the name of the variable.
 #[no_mangle]
-pub static _kernel_pt_level3: Aligned<AlignmentPageSize, [u64; N_PTE_PER_TABLE]> =
+pub static _kernel_pt_level3: Aligned<APageSize, [u64; N_PTE_PER_TABLE]> =
     Aligned([0x0 | PTE_KERNEL_DATA, 0x200000 | PTE_KERNEL_DATA, 0x400000 | PTE_KERNEL_DATA,
         0x600000 | PTE_KERNEL_DATA, 0x800000 | PTE_KERNEL_DATA, 0xa00000 | PTE_KERNEL_DATA,
         0xc00000 | PTE_KERNEL_DATA, 0xe00000 | PTE_KERNEL_DATA, 0x1000000 | PTE_KERNEL_DATA,
@@ -187,7 +187,7 @@ pub static _kernel_pt_level3: Aligned<AlignmentPageSize, [u64; N_PTE_PER_TABLE]>
 // Please be aware that the size of `*const u8` itself, like any other pointer type, is 8 bytes on aarch64.
 
 #[no_mangle]
-pub static mut _kernel_pt_level2: Aligned<AlignmentPageSize, [*const u8; N_PTE_PER_TABLE]> = Aligned({
+pub static mut _kernel_pt_level2: Aligned<APageSize, [*const u8; N_PTE_PER_TABLE]> = Aligned({
     // We are using a const fn block here to initialize the array, so that we do not need to write a lot of zeros, i.e.:
     // array: T = [1,2,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,...,0];
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
@@ -200,7 +200,7 @@ pub static mut _kernel_pt_level2: Aligned<AlignmentPageSize, [*const u8; N_PTE_P
                 // But do not worry, we are using it in a safe way here.
                 //
                 // It is used here to convert a pointer of this very-very-long-named type, `&_kernel_pt_level3`, to a pointer of `u8`.
-                mem::transmute::<&aligned::Aligned<AlignmentPageSize, [u64; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level3))
+                mem::transmute::<&Aligned<APageSize, [u64; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level3))
                 // Then, we add a offset. Calling this method is equivalent to calling `pointer + PTE_TABLE`.
                 // But it is a const fn, so we can use it in a const fn block.
                 //
@@ -213,11 +213,11 @@ pub static mut _kernel_pt_level2: Aligned<AlignmentPageSize, [*const u8; N_PTE_P
 });
 
 #[no_mangle]
-pub static mut kernel_pt: Aligned<AlignmentPageSize, [*const u8; N_PTE_PER_TABLE]> = Aligned({
+pub static mut kernel_pt: Aligned<APageSize, [*const u8; N_PTE_PER_TABLE]> = Aligned({
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
     tmp[0] =
         unsafe {
-            _kernel2physical(mem::transmute::<&aligned::Aligned<AlignmentPageSize, [*const u8; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level2))
+            _kernel2physical(mem::transmute::<&Aligned<APageSize, [*const u8; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level2))
                 .wrapping_offset(PTE_TABLE as isize)
         };
     tmp

@@ -2,7 +2,7 @@ pub const PAGE_SIZE: u16 = 4096;
 
 #[derive(Clone, Copy)]
 #[repr(align(4096))]
-pub struct AlignmentPageSize;
+pub struct APageSize;
 
 /* memory region attributes */
 pub const MT_DEVICE_nGnRnE: u64 = 0x0;
