@@ -36,12 +36,11 @@ mkfile_dir := $(dir $(mkfile_path))
 # -----------------
 PROJECT_NAME := Rarmo
 TARGET := aarch64-unknown-none
-PLATFORM_SPECIFIC_PATH := $(mkfile_dir)src/aarch64/
 DEFAULT_MODE := debug
 QEMU_EXECUTABLE := qemu-system-aarch64
 QEMU_DEBUGGING_PORT := 1234
 # You only need to modify the paths below if you are using Windows.
-# In Linux, you can just leave them as they are or delete these lines.
+# In Linux, you can just leave them as they are or delete these lines safely.
 MSYS2_ROOT := D:/Flutter/msys64/
 QEMU_ROOT := D:/Program Files/qemu/
 GCC_ROOT := D:/Flutter/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/gcc-linaro-7.5.0-2019.12-i686-mingw32_aarch64-elf/bin/
@@ -64,7 +63,7 @@ else
 	export DELIMITER_CHAR := ;
 	GDB := gdb-multiarch
 endif
-# Configure the path of other executables.
+# Configure the path of other executables. You can modify them manually if you want.
 export DD := $(SYSBIN)dd
 export SFDISK := $(SYSBIN)sfdisk
 export PRINTF := $(SYSBIN)printf
@@ -128,4 +127,3 @@ clean:
 	-cargo clean
 	-cd src && $(RM) entry.asm && cd ..
 	-$(MAKE) -C boot clean
-	-$(MAKE) -C $(PLATFORM_SPECIFIC_PATH) clean

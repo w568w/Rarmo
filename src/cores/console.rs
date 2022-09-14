@@ -18,10 +18,6 @@ pub static DEFAULT_CONSOLE: Mutex<ConsoleContext<UartDevice>> = Mutex::new(Conso
     lock: Mutex::new(0),
     device: UartDevice,
 });
-impl ConsoleContext<UartDevice>
-{
-
-}
 
 
 impl<T> ConsoleContext<T>

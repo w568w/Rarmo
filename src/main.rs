@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+
 mod cores;
 mod driver;
 mod kernel;
@@ -46,7 +47,7 @@ pub fn main() -> ! {
         StackDirection::Up => write!(writer, "Up, the stack grows from low to high!"),
         StackDirection::Down => write!(writer, "Down, the stack grows from high to low!")
     };
-    panic!();
+    panic!("This is a test panic!");
     stop_cpu();
 }
 

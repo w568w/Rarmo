@@ -1,4 +1,4 @@
-pub const PAGE_SIZE: u16 = 4096;
+pub const PAGE_SIZE: usize = 4096;
 
 #[derive(Clone, Copy)]
 #[repr(align(4096))]
@@ -35,6 +35,11 @@ pub const PTE_KERNEL_DEVICE: u64 = (PTE_KERNEL | PTE_DEVICE | PTE_BLOCK);
 pub const PTE_USER_DATA: u64 = (PTE_USER | PTE_NORMAL | PTE_PAGE);
 
 pub const N_PTE_PER_TABLE: usize = 512;
+
+pub type PageTable = [*const u8; N_PTE_PER_TABLE];
+
+// Another type of page table, which is used to i
+pub type RawPageTable = [u64; N_PTE_PER_TABLE];
 
 pub const KSPACE_MASK: u64 = 0xffff000000000000;
 

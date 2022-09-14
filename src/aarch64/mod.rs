@@ -1,3 +1,3 @@
 pub mod kernel_pt;
-mod mmu;
+pub mod mmu;
 pub mod intrinsic;
