@@ -72,7 +72,7 @@ pub struct SlobPage {
 }
 
 impl SlobPage {
-    pub fn is_last(page_addr:*mut SlobPage, obj: *mut SlobUnit) -> bool {
+    pub fn is_last(page_addr: *mut SlobPage, obj: *mut SlobUnit) -> bool {
         let addr = unsafe { slob_next(obj) } as usize;
         let end = unsafe { page_addr.byte_offset(PAGE_SIZE as isize) } as usize;
         addr >= end
@@ -116,6 +116,7 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
             continue;
         }
         // todo: Improve fragment distribution and reduce our average search time by starting our next search here.
+        break;
     }
     drop(lock);
     if block.is_none() {
@@ -179,7 +180,7 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
                 // ... and tell the following codes to look at the aligned block first!
                 prev = cur;
                 cur = aligned;
-                avail =slob_block_size(cur);
+                avail = slob_block_size(cur);
             }
             next = slob_next(cur);
             if avail == units {
@@ -211,7 +212,7 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
             return Some(cur.offset(1) as *mut u8);
         }
         // If we have gone over the whole page, we should return None.
-        if SlobPage::is_last(page,cur) {
+        if SlobPage::is_last(page, cur) {
             return None;
         } else {
             prev = cur;
