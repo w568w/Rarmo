@@ -141,8 +141,20 @@ el1:
 
     isb
 
-    ldr x9, =boot_stack_top
-    mov sp, x9
+    /* read CPUID. */
+    mrs     x0, mpidr_el1
+    and     x0, x0, #3
+
+    /* sp = boot_stack_top - CPUID * KERNEL_STACK_SIZE */
+    mov     x10, #KERNEL_STACK_SIZE
+    mul     x10, x10, x0
+    ldr     x9, =boot_stack_top
+    sub     x9, x9, x10
+
+    /* set up stack pointer, must always be aligned to 16 bytes. */
+    msr     spsel, #1
+    mov     sp, x9
+
     ldr x9, =main
     br x9
 
