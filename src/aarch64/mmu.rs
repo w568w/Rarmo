@@ -38,22 +38,37 @@ pub const N_PTE_PER_TABLE: usize = 512;
 
 pub type PageTable = [*const u8; N_PTE_PER_TABLE];
 
-// Another type of page table, which is used to i
+// Another type of page table, which is used to initialize a page table with `u64`.
 pub type RawPageTable = [u64; N_PTE_PER_TABLE];
 
 pub const KSPACE_MASK: u64 = 0xffff000000000000;
+
+pub const PHYSICAL_TOP: u64 = 0x3f000000;
 
 pub const fn kernel2physical(addr: u64) -> u64 {
     addr - KSPACE_MASK
 }
 
-// fixme Is this wrapping_* correct?
+// fixme Are these wrapping_* correct?
 pub const unsafe fn _kernel2physical<T>(addr: *const T) -> *const T {
     addr.wrapping_offset(KSPACE_MASK.wrapping_neg() as isize)
 }
 
+pub const unsafe fn _kernel2physical_mut<T>(addr: *mut T) -> *mut T {
+    addr.wrapping_offset(KSPACE_MASK.wrapping_neg() as isize)
+}
+
+
 pub const fn physical2kernel(addr: u64) -> u64 {
     addr + KSPACE_MASK
+}
+
+pub const unsafe fn _physical2kernel<T>(addr: *const T) -> *const T {
+    addr.wrapping_offset(KSPACE_MASK as isize)
+}
+
+pub const unsafe fn _physical2kernel_mut<T>(addr: *mut T) -> *mut T {
+    addr.wrapping_offset(KSPACE_MASK as isize)
 }
 
 pub const fn into_kernel_addr(addr: u64) -> u64 {

@@ -8,6 +8,7 @@ extern "C" {
 pub fn do_early_init() {
     let mut start = early_init as *const fn();
     let end = rest_init as *const fn();
+    let a = super::mem::init_physical_page_table as *const fn();
     while start != end {
         unsafe {
             (*start)();

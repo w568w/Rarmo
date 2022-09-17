@@ -1,6 +1,7 @@
 use core::fmt;
 
 use spin::Mutex;
+use crate::aarch64::intrinsic::delay_us;
 
 use crate::driver::CharDevice;
 use crate::UartDevice;

@@ -1,4 +1,5 @@
 pub mod init;
+pub(crate) mod mem;
 
 #[macro_export]
 macro_rules! define_early_init {

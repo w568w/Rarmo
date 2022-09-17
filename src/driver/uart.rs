@@ -35,7 +35,6 @@ impl CharDevice for UartDevice {
     fn put_char(&self,c: u8) {
         while get_u32(AUX_MU_LSR_REG) & 0x20 == 0 {}
         put_u32(AUX_MU_IO_REG, c.into());
-
         if c == 10 {
             self.put_char(13);
         }

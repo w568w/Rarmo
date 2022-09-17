@@ -1,3 +1,4 @@
 pub mod console;
-mod physical_memory;
-mod virtual_memory;
+pub mod physical_memory;
+pub mod virtual_memory;
+pub mod slob;

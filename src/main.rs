@@ -1,3 +1,4 @@
+#![feature(pointer_byte_offsets)]
 #![no_std]
 #![no_main]
 
@@ -6,6 +7,7 @@ mod cores;
 mod driver;
 mod kernel;
 mod aarch64;
+mod common;
 
 use core::arch::global_asm;
 use core::ffi::CStr;
@@ -30,7 +32,7 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(None);
+pub static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(None);
 
 #[no_mangle]
 pub fn main() -> ! {
@@ -41,35 +43,21 @@ pub fn main() -> ! {
     clear_bss();
     kernel::init::do_early_init();
     kernel::init::do_init();
-    let mut binding = CONSOLE.write();
-    let mut writer = binding.as_mut().unwrap();
-    let _ = match check_stack_direction() {
-        StackDirection::Up => write!(writer, "Up, the stack grows from low to high!"),
-        StackDirection::Down => write!(writer, "Down, the stack grows from high to low!")
-    };
-    panic!("This is a test panic!");
+    for i in 1..=200 {
+        let allocated_obj = kernel::mem::kmalloc(64);
+    }
+    // kernel::mem::kfree_page(allocated_obj);
     stop_cpu();
 }
 
 static mut FILLED_STRING: [u8; 1024] = [0; 1024];
 
-unsafe extern "C" fn test_early_init() {
-    for (i, byte) in "Hello world!\n".bytes().enumerate() {
-        FILLED_STRING[i] = byte;
-    }
-}
-define_early_init!(test_early_init);
-
-unsafe extern "C" fn test_init() {
+pub unsafe extern "C" fn init_console() {
     let mut binding = CONSOLE.write();
     *binding = Some(ConsoleContext::new(UartDevice));
-    // we use `CStr` here to read `FILLED_STRING` as a C `char[]`, so that the `c_str` will not contain
-    // the trailing zeros.
-    let c_str = CStr::from_ptr(FILLED_STRING.as_ptr() as *const i8).to_str().unwrap();
-    let _ = write!(binding.as_mut().unwrap(), "{}", c_str);
 }
+define_early_init!(init_console);
 
-define_init!(test_init);
 
 // Clean up the BSS section with zero.
 fn clear_bss() {
