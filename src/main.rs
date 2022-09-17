@@ -13,6 +13,7 @@ use core::arch::global_asm;
 use core::ffi::CStr;
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr;
 use spin::RwLock;
 use cores::console::ConsoleContext;
 use driver::uart::UartDevice;
@@ -33,7 +34,7 @@ fn panic(_info: &PanicInfo) -> ! {
 }
 
 pub static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(None);
-
+static mut ALLOCATED: [*mut u8; 1000] = [ptr::null_mut(); 1000];
 #[no_mangle]
 pub fn main() -> ! {
     // We will only use the first core.
@@ -43,9 +44,16 @@ pub fn main() -> ! {
     clear_bss();
     kernel::init::do_early_init();
     kernel::init::do_init();
-    for i in 1..=200 {
-        let allocated_obj = kernel::mem::kmalloc(64);
+    for i in 0..1000 {
+        unsafe { ALLOCATED[i] = kernel::mem::kmalloc(64); }
     }
+    for i in 0..1000 {
+        unsafe { kernel::mem::kfree(ALLOCATED[i]); }
+    }
+    for i in 0..1000 {
+        unsafe { ALLOCATED[i] = kernel::mem::kmalloc(64); }
+    }
+    loop {}
     // kernel::mem::kfree_page(allocated_obj);
     stop_cpu();
 }

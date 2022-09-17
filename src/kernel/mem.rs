@@ -51,6 +51,10 @@ pub fn kmalloc(size: usize) -> *mut u8 {
     }).expect("Unable to allocate memory from SLOB")
 }
 
+pub fn kfree(obj: *mut u8) -> usize {
+    slob::dealloc_node(obj)
+}
+
 fn align_num(size: usize) -> usize {
     if size % 8 == 0 {
         8
@@ -59,7 +63,7 @@ fn align_num(size: usize) -> usize {
     } else if size % 2 == 0 {
         2
     } else {
-        1
+        0
     }
 }
 

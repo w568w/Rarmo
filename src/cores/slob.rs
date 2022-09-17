@@ -91,6 +91,13 @@ pub fn kmem_cache_alloc_node(cache: &KMemCache) -> Option<*mut u8> {
     }
 }
 
+pub fn dealloc_node(block: *mut u8) -> usize {
+    unsafe {
+        let start_of_block = (block as *mut SlobUnit).offset(-1);
+        slob_free(start_of_block, *start_of_block) as usize
+    }
+}
+
 unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
     // Since we... (see below)
     let slob_list =
@@ -207,6 +214,7 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
             if (*page).free_units == 0 {
                 (*page).list.detach_self();
             }
+            cur.write(units);
             // We should return the address of the second unit of the block,
             // because first unit is used to record the block's size.
             return Some(cur.offset(1) as *mut u8);
@@ -219,6 +227,80 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
             cur = slob_next(cur);
         }
     }
+}
+
+unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
+    let original_size = size;
+    let mut size = size;
+    let page = slob_page(block);
+    let mut prev: *mut SlobUnit = ptr::null_mut();
+    let mut next: *mut SlobUnit = ptr::null_mut();
+    let _ = SLOB_LOCK.lock();
+    if (*page).free_units + size >= contain_units(PAGE_FREE_SIZE) {
+        // todo: free the page directly
+    }
+    if (*page).free_units == 0 {
+        // if the page is full, it is so easy to free the block.
+        (*page).free = block;
+        (*page).free_units = size;
+        set_slob(block, size, page.byte_offset(PAGE_SIZE as isize) as *mut SlobUnit);
+        // todo: if we drop full page before, add it to the free list again here.
+        return original_size;
+    }
+    // Otherwise, the page is not full, we need to find the right place to insert the block, and merge it with its neighbors.
+    // Be ready to get your hands dirty! We will deal with two conditions:
+    (*page).free_units += size;
+    if block < (*page).free {
+        // 1, if the block is before the first free block:
+        if block.offset(size as isize) == (*page).free {
+            // if the block is adjacent to the first free block, we can merge them
+            // by increasing the size of our `block`.
+            size += slob_block_size((*page).free);
+            (*page).free = slob_next((*page).free);
+        }
+        // then set the first free block of the page to be our `block`.
+        set_slob(block, size, (*page).free);
+        (*page).free = block;
+    } else {
+        // 2, or, the block is after the first free block:
+        // find the right place to insert the block.
+        prev = (*page).free;
+        next = slob_next(prev);
+        while block > next {
+            prev = next;
+            next = slob_next(prev);
+        }
+        // now, we have: prev < block < next,
+        // so insert `block` between them.
+
+        // Deal with `next`:
+        if !SlobPage::is_last(page, prev) && block.offset(size as isize) == next {
+            // if prev is not the last block, and the block is adjacent to the next block,
+            // merge `block` with `next`.
+            size += slob_block_size(next);
+            set_slob(block, size, slob_next(next));
+        } else {
+            // or, just set the next block of `block` to be `next`.
+            set_slob(block, size, next);
+        }
+
+        // Deal with `prev`:
+        if prev.offset(slob_block_size(prev) as isize) == block {
+            // if the block is adjacent to the `previous` block,
+            // merge `prev` with `block`.
+            size = slob_block_size(prev) + slob_block_size(block);
+            set_slob(prev, size, slob_next(block));
+        } else {
+            // or, just set the next block of `prev` to be `block`.
+            set_slob(prev, slob_block_size(prev), block);
+        }
+    }
+    original_size
+}
+
+fn slob_page(block: *mut SlobUnit) -> *mut SlobPage {
+    let page = block as usize & !(PAGE_SIZE - 1);
+    page as *mut SlobPage
 }
 
 // Align so that `returned value + 1` is a multiple of `align`.
@@ -245,3 +327,4 @@ fn slob_block_size(cur: *mut SlobUnit) -> SlobUnit {
         1
     }
 }
+
