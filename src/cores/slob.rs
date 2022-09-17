@@ -5,6 +5,14 @@ use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::round_up;
 use crate::kernel::mem::kalloc_page;
 
+/**
+ * A simple SLOB implementation.
+ * The design is based on the Linux kernel's.
+ *
+ * Ref:
+ * https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/mm/slob.c?h=linux-2.6.33.y
+ */
+
 // todo: the type should be decided by page size.
 pub type SlobUnit = i16;
 
