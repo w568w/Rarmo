@@ -11,6 +11,7 @@
  * But it guides you through the basics of writing assembly code.
  */
 
+
 /* SCR_EL3, Secure Configuration Register (EL3). */
 #define SCR_RESERVED (3 << 4)
 #define SCR_RW       (1 << 10)
@@ -71,14 +72,34 @@
                                 (MT_NORMAL_FLAGS << (8 * MT_NORMAL)) | \
                                 (MT_NORMAL_NC_FLAGS << (8 * MT_NORMAL_NC)))
 
-/* kernel stack size per core. Kernel stack sizes are fixed. */
+/* kernel stack size per CPU. Kernel stack sizes are fixed. */
 #define KERNEL_STACK_SIZE 4096
 
 .section ".text.entry"
 
 .global _start
-
 _start:
+    /**
+    * wake up other CPUs.
+    * see <https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S>.
+    * which has been incorporated in `start.elf` (or `bootcode.bin`?).
+    */
+    mov x15, x0
+    adr     x0, entry
+    mov     x1, #1
+    mov     x2, #2
+    mov     x3, #3
+    mov     x9, 0xd8
+    str     x0, [x9, x1, lsl #3]
+    str     x0, [x9, x2, lsl #3]
+    str     x0, [x9, x3, lsl #3]
+
+    dsb     sy
+    isb
+
+    sev
+
+entry:
     /* get current exception level from CurrentEL[3:2]. */
     mrs     x9, CurrentEL
     and     x9, x9, #0xc
@@ -86,7 +107,7 @@ _start:
     beq     el2
     bgt     el3
 
-el3:
+    el3:
     mov     x9, #SCR_VALUE
     msr     scr_el3, x9
     mov     x9, #SPSR_EL3_VALUE
@@ -155,12 +176,14 @@ el1:
     msr     spsel, #1
     mov     sp, x9
 
-    ldr x9, =main
-    br x9
+    mov x0, x15
+    ldr     x9, =main
+    br      x9
+
 
 /*
- * Here we create a space for kernel stack, in bss section.
- */
+* Here we create a space for kernel stack, in bss section.
+*/
 .section ".bss.stack"
 .globl boot_stack
 boot_stack:

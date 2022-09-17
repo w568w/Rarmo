@@ -16,7 +16,7 @@ static KERNEL_PHYSICAL_PT: RwLock<PhysicalMemory<LinkedMemoryTable>> = RwLock::n
     table: LinkedMemoryTable::uninitialized()
 });
 // Record the number of allocated pages. Just for test.
-static ALLOC_PAGE_CNT: AtomicUsize = AtomicUsize::new(0);
+pub static ALLOC_PAGE_CNT: AtomicUsize = AtomicUsize::new(0);
 
 pub extern "C" fn init_physical_page_table() {
     extern "C" {
@@ -31,8 +31,6 @@ define_early_init!(init_physical_page_table);
 
 pub fn kalloc_page() -> *mut u8 {
     ALLOC_PAGE_CNT.fetch_add(1, core::sync::atomic::Ordering::AcqRel);
-    let mut binding = CONSOLE.write();
-    write!(binding.as_mut().unwrap(), "kalloc_page: {} pages allocated\r", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed)).unwrap();
     let mut binding = KERNEL_PHYSICAL_PT.write();
     unsafe { _physical2kernel_mut(binding.table.page_alloc()) }
 }

@@ -36,7 +36,7 @@ mkfile_dir := $(dir $(mkfile_path))
 # -----------------
 PROJECT_NAME := Rarmo
 TARGET := aarch64-unknown-none
-DEFAULT_MODE := debug
+DEFAULT_MODE := release
 QEMU_EXECUTABLE := qemu-system-aarch64
 QEMU_DEBUGGING_PORT := 1234
 # You only need to modify the paths below if you are using Windows.
@@ -84,7 +84,7 @@ qemu_flags := -machine raspi3b \
                       -kernel "$(kernel_bin)" \
                       -serial "null" \
                       -serial "mon:stdio"
-rust_build_mode_arg := -$(DEFAULT_MODE)
+rust_build_mode_arg := --$(DEFAULT_MODE)
 ifeq ($(DEFAULT_MODE),debug)
 	# We don't need to pass this flag for debug builds.
     rust_build_mode_arg =

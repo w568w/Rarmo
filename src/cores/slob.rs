@@ -3,7 +3,7 @@ use core::ptr;
 use spin::Mutex;
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::round_up;
-use crate::kernel::mem::kalloc_page;
+use crate::kernel::mem::{kalloc_page, kfree_page};
 
 /**
  * A simple SLOB implementation.
@@ -69,7 +69,14 @@ impl SlobPageList {
         if let Some(next) = self.next {
             (*next).list.prev = self.prev;
         }
-        // todo: what if `self` is the first element?
+        let mut a = [&mut free_slob_small, &mut free_slob_medium, &mut free_slob_large];
+        for i in a.iter_mut() {
+            if let Some(next) = i.next {
+                if (*next).list.next == self.next {
+                    i.next = self.next;
+                }
+            }
+        }
     }
 }
 
@@ -107,7 +114,7 @@ pub fn dealloc_node(block: *mut u8) -> usize {
 }
 
 unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
-    // Since we... (see below)
+    let lock = SLOB_LOCK.lock();
     let slob_list =
         if size <= SLOB_BREAK1 {
             &mut free_slob_small
@@ -117,25 +124,24 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
             &mut free_slob_large
         };
     let mut slob_pointer = slob_list as *mut SlobPageList;
-    // ... lock it here, the above code is thread safe!
-    let lock = SLOB_LOCK.lock();
     let mut block: Option<*mut u8> = None;
     while let Some(page) = (*slob_pointer).next {
         slob_pointer = &mut (*page).list as *mut SlobPageList;
         if (*page).free_units < need_units(size) {
             continue;
         }
-        // let prev = (*page).list.prev.expect("Slob page list is corrupted. Some page does not have a prev pointer!");
+        let prev = (*page).list.prev;
         block = slob_page_alloc(page, size, align);
         if block.is_none() {
             continue;
         }
-        // todo: Improve fragment distribution and reduce our average search time by starting our next search here.
+        if slob_list.next != Some(page) {
+            (*page).list.detach_self();
+            slob_list.add_free_page(page);
+        }
         break;
     }
-    drop(lock);
     if block.is_none() {
-        let _ = SLOB_LOCK.lock();
         let page = slob_new_pages();
         slob_list.add_free_page(page);
         block = slob_page_alloc(page, size, align);
@@ -238,20 +244,22 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
 }
 
 unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
+    let _ = SLOB_LOCK.lock();
     let original_size = size;
     let mut size = size;
     let page = slob_page(block);
     let mut prev: *mut SlobUnit = ptr::null_mut();
     let mut next: *mut SlobUnit = ptr::null_mut();
-    let _ = SLOB_LOCK.lock();
     if (*page).free_units + size >= contain_units(PAGE_FREE_SIZE) {
-        // todo: free the page directly
+        (*page).list.detach_self();
+        kfree_page(page as *mut u8);
+        return original_size;
     }
     if (*page).free_units == 0 {
         // if the page is full, it is so easy to free the block.
         (*page).free = block;
         (*page).free_units = size;
-        set_slob(block, size, page.byte_offset(PAGE_SIZE as isize) as *mut SlobUnit);
+        set_slob(block, size, page.byte_add(PAGE_SIZE) as *mut SlobUnit);
         // todo: if we drop full page before, add it to the free list again here.
         return original_size;
     }
