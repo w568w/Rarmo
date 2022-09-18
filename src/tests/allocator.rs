@@ -1,5 +1,5 @@
 use core::sync::atomic::AtomicUsize;
-use crate::{CONSOLE, dsb_sy, get_cpu_id, panic};
+use crate::{CONSOLE, dsb_sy, get_cpu_id};
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::kernel::mem::{ALLOC_PAGE_CNT, kfree};
 use rand::prelude::*;
@@ -33,7 +33,7 @@ pub unsafe fn alloc_test() {
 
     if i == 0 {
         let mut binding = CONSOLE.write();
-        let mut writer = binding.as_mut().unwrap();
+        let writer = binding.as_mut().unwrap();
         write!(writer, "alloc_test\n").unwrap();
         drop(binding);
     }
@@ -62,18 +62,18 @@ pub unsafe fn alloc_test() {
     sync(3);
     let mut j = 0;
     while j < 10000 {
-        if j < 1000 || rand() > RAND_MAX / 16*7 {
+        if j < 1000 || rand() > RAND_MAX / 16 * 7 {
             let mut z = 0;
             let r = rand() & 255;
-            if (r < 127) { // [17,64]
+            if r < 127 { // [17,64]
                 z = rand() % 48 + 17;
                 z = round_up(z, 4);
-            } else if (r < 181) { // [1,16]
+            } else if r < 181 { // [1,16]
                 z = rand() % 16 + 1;
-            } else if (r < 235) { // [65,256]
+            } else if r < 235 { // [65,256]
                 z = rand() % 192 + 65;
                 z = round_up(z, 8);
-            } else if (r < 255) { // [257,512]
+            } else if r < 255 { // [257,512]
                 z = rand() % 256 + 257;
                 z = round_up(z, 8);
             } else { // [513,2040]
@@ -111,7 +111,7 @@ pub unsafe fn alloc_test() {
     sync(4);
     if i == 0 {
         let mut binding = CONSOLE.write();
-        let mut writer = binding.as_mut().unwrap();
+        let writer = binding.as_mut().unwrap();
         write!(writer, "Usage: {}\n", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) - r).unwrap();
         drop(binding);
     }
@@ -122,7 +122,7 @@ pub unsafe fn alloc_test() {
     sync(6);
     if i == 0 {
         let mut binding = CONSOLE.write();
-        let mut writer = binding.as_mut().unwrap();
+        let writer = binding.as_mut().unwrap();
         write!(writer, "alloc_test PASS\n").unwrap();
         drop(binding);
     }

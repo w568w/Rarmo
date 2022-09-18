@@ -1,12 +1,11 @@
-use core::sync::atomic::{AtomicI64, AtomicUsize};
+use core::sync::atomic::AtomicUsize;
 use spin::RwLock;
-use crate::aarch64::mmu::{_kernel2physical, _kernel2physical_mut, _physical2kernel, _physical2kernel_mut, kernel2physical, PAGE_SIZE, physical2kernel, PHYSICAL_TOP};
+use crate::aarch64::mmu::{_kernel2physical_mut, _physical2kernel_mut, kernel2physical, PAGE_SIZE, PHYSICAL_TOP};
 use crate::common::round_up;
 use crate::cores::physical_memory::{LinkedMemoryTable, PhysicalMemory, PhysicalMemoryTable};
 use crate::cores::slob;
 use crate::cores::slob::KMemCache;
-use crate::{CONSOLE, define_early_init};
-use core::fmt::Write;
+use crate::{define_early_init};
 
 // Why cannot leave the value here as None, and then create it in `init_physical_page_table`?
 //

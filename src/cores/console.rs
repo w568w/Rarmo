@@ -1,7 +1,6 @@
 use core::fmt;
 
 use spin::Mutex;
-use crate::aarch64::intrinsic::delay_us;
 
 use crate::driver::CharDevice;
 use crate::UartDevice;
@@ -13,12 +12,6 @@ pub struct ConsoleContext<T>
     pub lock: Mutex<u32>,
     pub device: T,
 }
-
-// Static variable for console.
-pub static DEFAULT_CONSOLE: Mutex<ConsoleContext<UartDevice>> = Mutex::new(ConsoleContext {
-    lock: Mutex::new(0),
-    device: UartDevice,
-});
 
 
 impl<T> ConsoleContext<T>

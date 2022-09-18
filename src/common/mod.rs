@@ -7,3 +7,11 @@ pub fn round_down<T: Copy + Rem<Output=T> + Sub<Output=T>>(addr: T, align: T) ->
 pub fn round_up<T: Copy + Rem<Output=T> + Sub<Output=T> + Add<Output=T> + From<u8>>(addr: T, align: T) -> T {
     round_down(addr + align - T::from(1), align)
 }
+
+pub const fn padding(size: usize, align: usize) -> usize {
+    if size % align == 0 {
+        0
+    } else {
+        align - size % align
+    }
+}

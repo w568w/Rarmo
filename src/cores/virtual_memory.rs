@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use crate::aarch64::mmu::PageTable;
 use crate::cores::physical_memory::{PhysicalMemory, PhysicalMemoryTable};
 

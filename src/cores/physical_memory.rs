@@ -6,7 +6,6 @@ const SMALL_PAGE_NUM: usize = (SMALL_MEMORY_SIZE_IN_MB * 1024 * 1024 / PAGE_SIZE
 
 pub struct PhysicalMemory<T>
     where T: PhysicalMemoryTable {
-    // lock: Mutex<u32>,
     pub table: T,
 }
 
