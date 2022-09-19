@@ -8,11 +8,11 @@
 # -----------------
 # You need to install the following packages first:
 #
-# Rust
+# Rust (You should install the nightly version, not stable)
 # MSYS2 (If you are on Windows)
 # mtools (If you are on Linux)
 # ARM cross compiler for `aarch64-none-elf` (You can grab one provided by ARM or Linaro. See below:)
-# -	https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain (Choose `AArch64 bare-metal target`)
+# - https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain (Choose `AArch64 bare-metal target`)
 # - https://releases.linaro.org/components/toolchain/binaries/ (Choose the latest gcc version and pick the toolchain under `aarch64-elf`)
 # make
 # - pacman -S mingw-w64-x86_64-make (In MSYS2, if you are on Windows)

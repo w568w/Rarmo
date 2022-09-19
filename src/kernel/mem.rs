@@ -52,7 +52,7 @@ pub fn kfree(obj: *mut u8) -> usize {
     slob::dealloc_node(obj)
 }
 
-fn align_num(size: usize) -> usize {
+const fn align_num(size: usize) -> usize {
     if size % 8 == 0 {
         8
     } else if size % 4 == 0 {

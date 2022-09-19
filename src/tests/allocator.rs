@@ -63,7 +63,7 @@ pub unsafe fn alloc_test() {
     let mut j = 0;
     while j < 10000 {
         if j < 1000 || rand() > RAND_MAX / 16 * 7 {
-            let mut z = 0;
+            let mut z ;
             let r = rand() & 255;
             if r < 127 { // [17,64]
                 z = rand() % 48 + 17;

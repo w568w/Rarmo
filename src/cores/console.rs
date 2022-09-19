@@ -3,20 +3,18 @@ use core::fmt;
 use spin::Mutex;
 
 use crate::driver::CharDevice;
-use crate::UartDevice;
 
 pub struct ConsoleContext<T>
-    where
-        T: CharDevice,
+where
+    T: CharDevice,
 {
     pub lock: Mutex<u32>,
     pub device: T,
 }
 
-
 impl<T> ConsoleContext<T>
-    where
-        T: CharDevice,
+where
+    T: CharDevice,
 {
     pub fn new(device: T) -> Self {
         device.init();

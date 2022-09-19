@@ -15,7 +15,7 @@ use crate::kernel::mem::{kalloc_page, kfree_page};
  */
 
 // todo: the type should be decided by page size.
-pub type SlobUnit = i16;
+type SlobUnit = i16;
 
 const UNIT_SIZE: usize = size_of::<SlobUnit>();
 
@@ -39,7 +39,6 @@ const SLOB_BREAK2: usize = 1024;
 static mut FREE_SLOB_SMALL: [SlobPageList; 4] = [SlobPageList { prev: None, next: None }; 4];
 static mut FREE_SLOB_MEDIUM: [SlobPageList; 4] = [SlobPageList { prev: None, next: None }; 4];
 static mut FREE_SLOB_LARGE: [SlobPageList; 4] = [SlobPageList { prev: None, next: None }; 4];
-static SLOB_LOCK: Mutex<()> = Mutex::new(());
 
 
 pub struct KMemCache {
@@ -116,7 +115,7 @@ pub fn dealloc_node(block: *mut u8) -> usize {
 }
 
 unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
-    // let lock = SLOB_LOCK.lock();
+    // We do not need a lock mechanism here, since we will allocate the page for each CPU hart.
     let slob_list =
         if size <= SLOB_BREAK1 {
             &mut FREE_SLOB_SMALL[get_cpu_id()]
@@ -184,7 +183,6 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
     let mut cur = (*page).free;
     let mut aligned: *mut SlobUnit = ptr::null_mut();
     let mut delta: isize = 0;
-    let units = round_up(need_units(size), contain_units(8));
     let units = need_units(size);
     loop {
         let mut avail = slob_block_size(cur);
@@ -250,7 +248,6 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
 }
 
 unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
-    // let _ = SLOB_LOCK.lock();
     let original_size = size;
     let mut size = size;
     let page = slob_page(block);
@@ -325,12 +322,13 @@ fn slob_page(block: *mut SlobUnit) -> *mut SlobPage {
     page as *mut SlobPage
 }
 
-// Align so that `returned value + 1` is a multiple of `align`.
+// Calculate aligned block, so that `returned value + 1` is a multiple of `align`.
 fn align_up(x: *mut SlobUnit, align: usize) -> *mut SlobUnit {
     let aligned = round_up(unsafe { x.offset(1) } as usize, align) as *mut SlobUnit;
     unsafe { aligned.offset(-1) }
 }
 
+// Get the next block of `cur`.
 unsafe fn slob_next(cur: *mut SlobUnit) -> *mut SlobUnit {
     let avail = cur.read();
     if avail >= 0 {
@@ -341,6 +339,7 @@ unsafe fn slob_next(cur: *mut SlobUnit) -> *mut SlobUnit {
     }
 }
 
+// Get the block size of `cur`.
 fn slob_block_size(cur: *mut SlobUnit) -> SlobUnit {
     let avail = unsafe { cur.read() };
     if avail >= 0 {
