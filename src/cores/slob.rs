@@ -1,6 +1,5 @@
 use core::mem::size_of;
 use core::ptr;
-use spin::Mutex;
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::{padding, round_up};
 use crate::get_cpu_id;
@@ -33,8 +32,8 @@ pub const fn contain_units(x: usize) -> SlobUnit {
     (x / UNIT_SIZE) as SlobUnit
 }
 
-const SLOB_BREAK1: usize = 256;
-const SLOB_BREAK2: usize = 1024;
+const SLOB_BREAK1: usize = 64;
+const SLOB_BREAK2: usize = 256;
 
 static mut FREE_SLOB_SMALL: [SlobPageList; 4] = [SlobPageList { prev: None, next: None }; 4];
 static mut FREE_SLOB_MEDIUM: [SlobPageList; 4] = [SlobPageList { prev: None, next: None }; 4];
@@ -69,7 +68,6 @@ pub struct SlobPage {
     pub free_units: SlobUnit,
     pub free: *mut SlobUnit,
     pub list: SlobPageList,
-    _padding: [u8; padding(UNIT_SIZE + size_of::<*mut SlobUnit>() + size_of::<SlobPageList>(), 8)],
 }
 
 impl SlobPage {
