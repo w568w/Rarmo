@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use core::{
     arch::asm,
     ptr::{read_volatile, write_volatile},
@@ -142,6 +143,14 @@ pub mod addr {
     pub const AUX_MU_CNTL_REG: u64 = AUX_BASE + 0x60;
     pub const AUX_MU_STAT_REG: u64 = AUX_BASE + 0x64;
     pub const AUX_MU_BAUD_REG: u64 = AUX_BASE + 0x68;
+    // MailBox Address definition
+    pub const VIDEOCORE_MBOX: u64 = MMIO_BASE + 0x0000B880;
+    pub const MBOX_READ: u64 = VIDEOCORE_MBOX + 0x0;
+    pub const MBOX_POLL: u64 = VIDEOCORE_MBOX + 0x10;
+    pub const MBOX_SENDER: u64 = VIDEOCORE_MBOX + 0x14;
+    pub const MBOX_STATUS: u64 = VIDEOCORE_MBOX + 0x18;
+    pub const MBOX_CONFIG: u64 = VIDEOCORE_MBOX + 0x1C;
+    pub const MBOX_WRITE: u64 = VIDEOCORE_MBOX + 0x20;
 }
 
 pub mod aux {
@@ -149,5 +158,47 @@ pub mod aux {
 
     pub fn aux_mu_baud(bandrate: u32) -> u32 {
         (AUX_UART_CLOCK / ((bandrate) * 8)) - 1
+    }
+}
+
+pub mod mbox {
+    pub const MBOX_RESPONSE: u32 = 0x80000000;
+    pub const MBOX_FULL: u32 = 0x80000000;
+    pub const MBOX_EMPTY: u32 = 0x40000000;
+    pub const MBOX_REQUEST: u32 = 0;
+    pub const MBOX_CH_POWER: u8 = 0;
+    pub const MBOX_CH_FB: u8 = 1;
+    pub const MBOX_CH_VUART: u8 = 2;
+    pub const MBOX_CH_VCHIQ: u8 = 3;
+    pub const MBOX_CH_LEDS: u8 = 4;
+    pub const MBOX_CH_BTNS: u8 = 5;
+    pub const MBOX_CH_TOUCH: u8 = 6;
+    pub const MBOX_CH_COUNT: u8 = 7;
+    pub const MBOX_CH_PROP: u8 = 8;
+
+    // tags
+    pub const MBOX_TAG_SETPOWER: u32 = 0x28001;
+    pub const MBOX_TAG_SETCLKRATE: u32 = 0x38002;
+    pub const MBOX_TAG_LAST: u32 = 0;
+
+    use aligned::{A16, Aligned};
+    use crate::aarch64::intrinsic::addr::{MBOX_READ, MBOX_STATUS, MBOX_WRITE};
+    use crate::aarch64::intrinsic::{get_u32, put_u32};
+
+    pub static mut MBOX: Aligned<A16, [u32; 36]> = Aligned([0; 36]);
+
+    pub unsafe fn call(channel: u8) -> bool {
+        let mbox_addr = &MBOX as *const Aligned<A16, [u32; 36]> as usize;
+        let channel_descriptor: usize = <u8 as Into<usize>>::into(channel) & 0xf;
+        let message_addr: u32 =
+            ((mbox_addr & (!0xf)) | channel_descriptor) as u32;
+        while get_u32(MBOX_STATUS) & MBOX_FULL != 0 {}
+        put_u32(MBOX_WRITE, message_addr);
+        loop {
+            while get_u32(MBOX_STATUS) & MBOX_EMPTY != 0 {}
+            if get_u32(MBOX_READ) == message_addr {
+                return MBOX[1] == MBOX_RESPONSE;
+            }
+        }
     }
 }
