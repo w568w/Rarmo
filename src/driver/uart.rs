@@ -25,7 +25,7 @@ impl CharDevice for UartDevice {
         // set RTS line to always high.
         put_u32(AUX_MU_MCR_REG, 0);
         // set baud rate to 115200.
-        put_u32(AUX_MU_BAUD_REG, AUX_MU_BAUD(115_200));
+        put_u32(AUX_MU_BAUD_REG, aux_mu_baud(115_200));
         // clear receive and transmit FIFO.
         put_u32(AUX_MU_IIR_REG, 6);
         // finally, enable receiver and transmitter.

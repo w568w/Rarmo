@@ -1,3 +1,4 @@
+#![allow(non_upper_case_globals)]
 use core::sync::atomic::AtomicUsize;
 use crate::{CONSOLE, dsb_sy, get_cpu_id};
 use crate::aarch64::mmu::PAGE_SIZE;
@@ -6,7 +7,7 @@ use rand::prelude::*;
 use crate::common::round_up;
 use core::fmt::Write;
 use rand::distributions::Uniform;
-use crate::aarch64::intrinsic::{get_time_us, get_timestamp};
+use crate::aarch64::intrinsic::get_time_us;
 
 static mut p: [[*mut u8; 10000]; CPU_NUM] = [[0 as *mut u8; 10000]; CPU_NUM];
 static mut sz: [[u8; 10000]; CPU_NUM] = [[0; 10000]; CPU_NUM];

@@ -34,7 +34,7 @@ mkfile_dir := $(dir $(mkfile_path))
 # User defined variables
 # In most cases, you need to check and modify these variables one by one.
 # -----------------
-PROJECT_NAME := Rarmo
+PROJECT_NAME := rarmo
 TARGET := aarch64-unknown-none
 DEFAULT_MODE := release
 QEMU_EXECUTABLE := qemu-system-aarch64

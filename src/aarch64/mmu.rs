@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused)]
+#![allow(non_upper_case_globals)]
 pub const PAGE_SIZE: usize = 4096;
 
 #[derive(Clone, Copy)]

@@ -261,7 +261,7 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
         }
         // If this block has enough space, we will allocate on it.
         if avail >= units + delta as SlobUnit {
-            let mut next: *mut SlobUnit = ptr::null_mut();
+            let mut next: *mut SlobUnit;
             // If we really need to align...
             if delta != 0 {
                 next = slob_next(cur);
@@ -328,8 +328,6 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     let original_size = size;
     let mut size = size;
     let page = slob_page(block);
-    let mut prev: *mut SlobUnit = ptr::null_mut();
-    let mut next: *mut SlobUnit = ptr::null_mut();
     // If the page will be empty after this free, we should remove it from the free list and
     // free the page by page allocator.
     if (*page).free_units + size >= contain_units(PAGE_FREE_SIZE) {
@@ -364,8 +362,8 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     } else {
         // 2, or, the block is after the first free block:
         // find the right place to insert the block.
-        prev = (*page).free;
-        next = slob_next(prev);
+        let mut prev = (*page).free;
+        let mut next = slob_next(prev);
         while block > next {
             prev = next;
             next = slob_next(prev);

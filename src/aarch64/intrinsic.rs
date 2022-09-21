@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use core::{
     arch::asm,
     ptr::{read_volatile, write_volatile},
@@ -146,7 +147,7 @@ pub mod addr {
 pub mod aux {
     pub const AUX_UART_CLOCK: u32 = 250_000_000;
 
-    pub fn AUX_MU_BAUD(bandrate: u32) -> u32 {
+    pub fn aux_mu_baud(bandrate: u32) -> u32 {
         (AUX_UART_CLOCK / ((bandrate) * 8)) - 1
     }
 }
