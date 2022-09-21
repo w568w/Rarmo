@@ -18,8 +18,10 @@ type SlobUnit = i16;
 
 const UNIT_SIZE: usize = size_of::<SlobUnit>();
 
+// How many free units in a page?
 const PAGE_FREE_SIZE: usize = PAGE_SIZE - size_of::<SlobPage>();
 
+// To allocate a `x` bytes memory, how many units do we need?
 pub const fn need_units(x: usize) -> SlobUnit {
     if x % UNIT_SIZE == 0 {
         (x / UNIT_SIZE + 1) as SlobUnit
@@ -28,10 +30,12 @@ pub const fn need_units(x: usize) -> SlobUnit {
     }
 }
 
+// How many units can be allocated within `x` bytes?
 pub const fn contain_units(x: usize) -> SlobUnit {
     (x / UNIT_SIZE) as SlobUnit
 }
 
+// How many bytes does a block of `x` units contain?
 pub const fn unit_to_size(x: SlobUnit) -> usize {
     (x - 1) as usize * UNIT_SIZE
 }
@@ -39,6 +43,8 @@ pub const fn unit_to_size(x: SlobUnit) -> usize {
 const SLOB_BREAK1: usize = 64;
 const SLOB_BREAK2: usize = 256;
 
+// The list heads of the SLOB page list.
+// We will maintain three lists for each CPU hart.
 static mut FREE_SLOB_SMALL: [SlobPageList; 4] = [SlobPageList {
     prev: None,
     next: None,
@@ -58,6 +64,7 @@ pub struct KMemCache {
     pub align: usize,
 }
 
+// A structure to describe a linked-list node.
 #[derive(Clone, Copy)]
 pub struct SlobPageList {
     pub prev: Option<*mut SlobPage>,
@@ -65,6 +72,7 @@ pub struct SlobPageList {
 }
 
 impl SlobPageList {
+    // Add a page to the head of this list.
     pub unsafe fn add_free_page(&mut self, page: *mut SlobPage) {
         (*page).list.prev = None;
         if let Some(original_next) = self.next {
@@ -76,18 +84,25 @@ impl SlobPageList {
 }
 
 pub struct SlobPage {
+    // How many free units are left on the page?
     pub free_units: SlobUnit,
+    // Point to the first free block on the page.
     pub free: *mut SlobUnit,
+    // The list node of this page.
     pub list: SlobPageList,
+    // The max units that can be allocated on this page.
+    // It can be `None` if we don't know the max unit exactly.
     pub max_free: Option<SlobUnit>,
 }
 
 impl SlobPage {
+    // Is the `obj` the last object on the `page_addr`?
     pub fn is_last(page_addr: *mut SlobPage, obj: *mut SlobUnit) -> bool {
         let addr = unsafe { slob_next(obj) } as usize;
         let end = unsafe { page_addr.byte_add(PAGE_SIZE) } as usize;
         addr >= end
     }
+    // Detach the `page` from the list.
     pub unsafe fn detach_self(page: *mut SlobPage) {
         if let Some(prev) = (*page).list.prev {
             (*prev).list.next = (*page).list.next;
@@ -95,24 +110,28 @@ impl SlobPage {
         if let Some(next) = (*page).list.next {
             (*next).list.prev = (*page).list.prev;
         }
-        let mut a = [
+        // Special case: if the page is the first one in the list,
+        // we should update the list head.
+        let mut slob_lists = [
             &mut FREE_SLOB_SMALL[get_cpu_id()],
             &mut FREE_SLOB_MEDIUM[get_cpu_id()],
             &mut FREE_SLOB_LARGE[get_cpu_id()],
         ];
-        for i in a.iter_mut() {
-            if let Some(next) = i.next {
+        for slob_list in slob_lists.iter_mut() {
+            if let Some(next) = slob_list.next {
                 if next == page {
-                    i.next = (*page).list.next;
+                    slob_list.next = (*page).list.next;
                 }
             }
         }
+
         (*page).list.prev = None;
         (*page).list.next = None;
     }
 }
 
 pub fn kmem_cache_alloc_node(cache: &KMemCache) -> Option<*mut u8> {
+    // We can only allocate a size smaller than `PAGE_FREE_SIZE`.
     if cache.size < PAGE_FREE_SIZE {
         unsafe { slob_alloc(cache.size, cache.align) }
     } else {
@@ -122,11 +141,19 @@ pub fn kmem_cache_alloc_node(cache: &KMemCache) -> Option<*mut u8> {
 
 pub fn dealloc_node(block: *mut u8) -> usize {
     unsafe {
+        // `block - 1` is the start of the block.
         let start_of_block = (block as *mut SlobUnit).offset(-1);
         slob_free(start_of_block, *start_of_block) as usize
     }
 }
 
+// ==================================
+// SLOB internal functions
+//
+// Most of them are unsafe. Be ready to get your hands dirty with raw pointers.
+// ==================================
+
+// Choose the appropriate list to allocate from.
 unsafe fn select_slob_list(size: usize) -> *mut SlobPageList {
     let a = if size <= SLOB_BREAK1 {
         &mut FREE_SLOB_SMALL[get_cpu_id()]
@@ -143,8 +170,11 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
     let slob_list = select_slob_list(size);
     let mut slob_pointer = slob_list;
     let mut block: Option<*mut u8> = None;
+    // Walk through the slob_list to find a suitable page.
     while let Some(page) = (*slob_pointer).next {
         slob_pointer = &mut (*page).list as *mut SlobPageList;
+
+        // If the page has less space than the requested size, we will skip it...
         if (*page).free_units < need_units(size) {
             continue;
         }
@@ -153,10 +183,14 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
                 continue;
             }
         }
+        // ... or, we will try to allocate from this page.
         block = slob_page_alloc(page, size, align);
+        // Cannot find a suitable block on this page? We will try the next one.
         if block.is_none() {
             continue;
         }
+        // A optimization: if the page has more free space than the first page in the list,
+        // we will move it to the head of the list.
         if (*slob_list).next != Some(page) {
             if let Some(first_page) = (*slob_list).next {
                 if (*first_page).free_units < (*page).free_units {
@@ -167,6 +201,7 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
         }
         break;
     }
+    // If we still cannot find a suitable page, we will allocate a new one.
     if block.is_none() {
         let page = slob_new_pages();
         (*slob_list).add_free_page(page);
@@ -215,13 +250,16 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
     let mut delta: isize = 0;
     let units = need_units(size);
     let mut max_block_size: SlobUnit = 0;
+    // Walk through the free list to find a suitable block.
     loop {
         let mut avail = slob_block_size(cur);
         max_block_size = max_block_size.max(avail);
+        // Calculate the alignment offset, if needed.
         if align > 0 {
             aligned = align_up(cur, align);
             delta = aligned.offset_from(cur);
         }
+        // If this block has enough space, we will allocate on it.
         if avail >= units + delta as SlobUnit {
             let mut next: *mut SlobUnit = ptr::null_mut();
             // If we really need to align...
@@ -256,10 +294,10 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
                 } else {
                     set_slob(prev, slob_block_size(prev), cur.offset(units as isize));
                 }
-                // The second part will point to the next block.
+                // The second part of the block will point to the next block.
                 set_slob(cur.offset(units as isize), avail - units, next);
             }
-            // Update the free units we have.
+            // Update the free units we have on the page.
             (*page).free_units -= units;
             if (*page).free_units == 0 {
                 SlobPage::detach_self(page);
@@ -267,18 +305,19 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
             cur.write(units);
 
             // Since we have not gone over the whole page, we cannot update the max free units
-            // with `max_block_size` here. ALso, we need to invalidate the max free units.
+            // with `max_block_size` here. So we need to invalidate the max free units.
             (*page).max_free = None;
             // We should return the address of the second unit of the block,
-            // because first unit is used to record the block's size.
+            // because first unit has been used to record the block's size.
             return Some(cur.offset(1) as *mut u8);
         }
-        // If we have gone over the whole page, we should return None.
+        // If we have gone over the whole page but still cannot find a suitable block, we should return None.
         if SlobPage::is_last(page, cur) {
-            // Since we have gone over the whole page, we should update the max free units.
+            // Since we have gone over the whole page, we can update the max free units here.
             (*page).max_free = Some(max_block_size);
             return None;
         } else {
+            // We will try the next block.
             prev = cur;
             cur = slob_next(cur);
         }
@@ -291,6 +330,8 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     let page = slob_page(block);
     let mut prev: *mut SlobUnit = ptr::null_mut();
     let mut next: *mut SlobUnit = ptr::null_mut();
+    // If the page will be empty after this free, we should remove it from the free list and
+    // free the page by page allocator.
     if (*page).free_units + size >= contain_units(PAGE_FREE_SIZE) {
         SlobPage::detach_self(page);
         kfree_page(page as *mut u8);
@@ -359,6 +400,7 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     original_size
 }
 
+// Get the page that contains the block.
 fn slob_page(block: *mut SlobUnit) -> *mut SlobPage {
     let page = block as usize & !(PAGE_SIZE - 1);
     page as *mut SlobPage
