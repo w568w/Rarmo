@@ -18,6 +18,12 @@ pub fn delay_us(us: u64) {
     }
 }
 
+pub fn get_time_us() -> u64 {
+    let freq = get_timer_freq();
+    let now = get_timestamp();
+    now * 1_000_000 / freq
+}
+
 #[inline(always)]
 pub fn stop_cpu() -> ! {
     loop {

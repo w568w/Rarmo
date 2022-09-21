@@ -6,6 +6,7 @@ use rand::prelude::*;
 use crate::common::round_up;
 use core::fmt::Write;
 use rand::distributions::Uniform;
+use crate::aarch64::intrinsic::{get_time_us, get_timestamp};
 
 static mut p: [[*mut u8; 10000]; CPU_NUM] = [[0 as *mut u8; 10000]; CPU_NUM];
 static mut sz: [[u8; 10000]; CPU_NUM] = [[0; 10000]; CPU_NUM];
@@ -60,10 +61,15 @@ pub unsafe fn alloc_test() {
     }
 
     sync(3);
+    let mut start = 0;
+    if i == 0 {
+        start = get_time_us();
+    }
+
     let mut j = 0;
     while j < 10000 {
         if j < 1000 || rand() > RAND_MAX / 16 * 7 {
-            let mut z ;
+            let mut z;
             let r = rand() & 255;
             if r < 127 { // [17,64]
                 z = rand() % 48 + 17;
@@ -112,7 +118,7 @@ pub unsafe fn alloc_test() {
     if i == 0 {
         let mut binding = CONSOLE.write();
         let writer = binding.as_mut().unwrap();
-        write!(writer, "Usage: {}\n", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) - r).unwrap();
+        write!(writer, "Usage: {}, time: {} us\n", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) - r, get_time_us() - start).unwrap();
         drop(binding);
     }
     sync(5);
