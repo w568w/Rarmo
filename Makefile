@@ -17,6 +17,9 @@
 # make
 # - pacman -S mingw-w64-x86_64-make (In MSYS2, if you are on Windows)
 # - apt install make (If you are on Debian)
+# dosfstools
+# - pacman -S dosfstools (In MSYS2, if you are on Windows)
+# - apt install dosfstools (If you are on Debian)
 # gdb-multiarch
 # - pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
 # - apt install gdb-multiarch (If you are on Debian)
