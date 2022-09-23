@@ -1,5 +1,9 @@
 pub mod init;
-pub(crate) mod mem;
+pub mod mem;
+pub mod rust_allocator;
+pub mod proc;
+pub mod cpu;
+pub mod sched;
 
 #[macro_export]
 macro_rules! define_early_init {

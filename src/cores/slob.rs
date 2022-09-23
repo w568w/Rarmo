@@ -4,6 +4,8 @@ use crate::get_cpu_id;
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;
 use core::ptr;
+use spin::Mutex;
+use crate::common::list::ListNode;
 
 /**
  * A simple SLOB implementation.
@@ -43,20 +45,21 @@ pub const fn unit_to_size(x: SlobUnit) -> usize {
 const SLOB_BREAK1: usize = 64;
 const SLOB_BREAK2: usize = 256;
 
+static SLOB_LOCK: Mutex<()> = Mutex::new(());
 // The list heads of the SLOB page list.
 // We will maintain three lists for each CPU hart.
-static mut FREE_SLOB_SMALL: [SlobPageList; 4] = [SlobPageList {
+static mut FREE_SLOB_SMALL: SlobPageList = SlobPageList {
     prev: None,
     next: None,
-}; 4];
-static mut FREE_SLOB_MEDIUM: [SlobPageList; 4] = [SlobPageList {
+};
+static mut FREE_SLOB_MEDIUM: SlobPageList = SlobPageList {
     prev: None,
     next: None,
-}; 4];
-static mut FREE_SLOB_LARGE: [SlobPageList; 4] = [SlobPageList {
+};
+static mut FREE_SLOB_LARGE: SlobPageList = SlobPageList {
     prev: None,
     next: None,
-}; 4];
+};
 
 pub struct KMemCache {
     pub name: &'static str,
@@ -65,11 +68,7 @@ pub struct KMemCache {
 }
 
 // A structure to describe a linked-list node.
-#[derive(Clone, Copy)]
-pub struct SlobPageList {
-    pub prev: Option<*mut SlobPage>,
-    pub next: Option<*mut SlobPage>,
-}
+type SlobPageList = ListNode<SlobPage>;
 
 impl SlobPageList {
     // Add a page to the head of this list.
@@ -113,9 +112,9 @@ impl SlobPage {
         // Special case: if the page is the first one in the list,
         // we should update the list head.
         let mut slob_lists = [
-            &mut FREE_SLOB_SMALL[get_cpu_id()],
-            &mut FREE_SLOB_MEDIUM[get_cpu_id()],
-            &mut FREE_SLOB_LARGE[get_cpu_id()],
+            &mut FREE_SLOB_SMALL,
+            &mut FREE_SLOB_MEDIUM,
+            &mut FREE_SLOB_LARGE,
         ];
         for slob_list in slob_lists.iter_mut() {
             if let Some(next) = slob_list.next {
@@ -156,16 +155,17 @@ pub fn dealloc_node(block: *mut u8) -> usize {
 // Choose the appropriate list to allocate from.
 unsafe fn select_slob_list(size: usize) -> *mut SlobPageList {
     let a = if size <= SLOB_BREAK1 {
-        &mut FREE_SLOB_SMALL[get_cpu_id()]
+        &mut FREE_SLOB_SMALL
     } else if size <= SLOB_BREAK2 {
-        &mut FREE_SLOB_MEDIUM[get_cpu_id()]
+        &mut FREE_SLOB_MEDIUM
     } else {
-        &mut FREE_SLOB_LARGE[get_cpu_id()]
+        &mut FREE_SLOB_LARGE
     };
     a as *mut SlobPageList
 }
 
 unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
+    let lock = SLOB_LOCK.lock();
     // We do not need a lock mechanism here, since we will allocate the page for each CPU hart.
     let slob_list = select_slob_list(size);
     let mut slob_pointer = slob_list;
@@ -201,8 +201,10 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
         }
         break;
     }
+    drop(lock);
     // If we still cannot find a suitable page, we will allocate a new one.
     if block.is_none() {
+        let _lock = SLOB_LOCK.lock();
         let page = slob_new_pages();
         (*slob_list).add_free_page(page);
         block = slob_page_alloc(page, size, align);
@@ -327,6 +329,7 @@ unsafe fn slob_page_alloc(page: *mut SlobPage, size: usize, align: usize) -> Opt
 unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     let original_size = size;
     let mut size = size;
+    let _lock = SLOB_LOCK.lock();
     let page = slob_page(block);
     // If the page will be empty after this free, we should remove it from the free list and
     // free the page by page allocator.

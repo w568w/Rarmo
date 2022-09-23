@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused)]
 #![allow(non_upper_case_globals)]
+
 pub const PAGE_SIZE: usize = 4096;
 
 #[derive(Clone, Copy)]
@@ -52,7 +53,6 @@ pub const fn kernel2physical(addr: u64) -> u64 {
     addr - KSPACE_MASK
 }
 
-// fixme Are these wrapping_* correct?
 pub const unsafe fn _kernel2physical<T>(addr: *const T) -> *const T {
     addr.wrapping_offset(KSPACE_MASK.wrapping_neg() as isize)
 }

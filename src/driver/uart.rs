@@ -46,7 +46,6 @@ impl CharDevice for UartDevice {
             return u8::MAX;
         }
         let result = get_u32(AUX_MU_IO_REG) & 0xff;
-        // fixme: Is there anything to do to convert u32 to i8?
         result.try_into().unwrap()
     }
 }

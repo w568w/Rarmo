@@ -73,6 +73,49 @@ pub fn arch_fence() {
     isb();
 }
 
+#[inline(always)]
+pub fn get_esr_el1() -> u64 {
+    let mut ret;
+    unsafe {
+        asm!("mrs {}, esr_el1", out(reg) ret);
+    }
+    ret
+}
+
+#[inline(always)]
+pub fn reset_esr_el1() {
+    unsafe {
+        asm!("msr esr_el1, xzr", options(nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn set_ttbr0_el1(val: u64) {
+    unsafe {
+        asm!("msr ttbr0_el1, {}", in(reg) val, options(nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn set_vbar_el1(val: u64) {
+    unsafe {
+        asm!("msr vbar_el1, {}", in(reg) val, options(nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn disable_trap() -> bool {
+    let t: u64;
+    unsafe {
+        asm!("mrs {}, daif", out(reg) t, options(nostack, preserves_flags));
+        if t != 0 {
+            return false;
+        }
+        asm!("msr daifset, {}", in(reg) 0xf << 6, options(nostack, preserves_flags));
+    }
+    true
+}
+
 // Why don't we need `::: "memory"` here, like what we did in C?
 // Because Rust's `asm!` macro will automatically add a memory barrier for us. A perfect design!
 // See: https://stackoverflow.com/questions/72823056/how-to-build-a-barrier-by-rust-asm.
@@ -122,6 +165,7 @@ pub fn get_u32(address: u64) -> u32 {
 pub mod addr {
     pub const KERNEL_BASE: u64 = 0xffff000000000000;
     pub const MMIO_BASE: u64 = KERNEL_BASE + 0x3F000000;
+    pub const LOCAL_BASE: u64 = KERNEL_BASE + 0x40000000;
     // GPIO Address definition
     pub const GPIO_BASE: u64 = MMIO_BASE + 0x200000;
     pub const GPFSEL0: u64 = GPIO_BASE + 0x00;

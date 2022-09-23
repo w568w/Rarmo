@@ -73,6 +73,8 @@ export PRINTF := $(SYSBIN)printf
 export MKFS_VFAT := $(SYSBIN)mkfs.vfat
 export QEMU := $(QEMU_ROOT)$(QEMU_EXECUTABLE)
 export CC := $(GCC_ROOT)aarch64-elf-gcc
+ARCH_S_FILES := $(wildcard src/aarch64/*.S) $(wildcard src/*.S)
+ARCH_ASM_FILES := $(patsubst %.S,%.asm,$(ARCH_S_FILES))
 # -----------------
 
 # -----------------
@@ -97,10 +99,13 @@ endif
 .PHONY:all
 all: $(kernel_bin)
 
-src/entry.asm: src/entry.S
+src/%.asm: src/%.S
 	$(CC) -S $< > $@
 
-$(artifact_prefix): src/entry.asm
+src/aarch64/%.asm: src/aarch64/%.S
+	$(CC) -S $< > $@
+
+$(artifact_prefix): $(ARCH_ASM_FILES)
 	cargo build --target $(TARGET) $(rust_build_mode_arg)
 
 $(kernel_bin): $(artifact_prefix)
@@ -129,4 +134,5 @@ debug: $(artifact_prefix)
 clean:
 	-cargo clean
 	-cd src && $(RM) entry.asm && cd ..
+	-$(foreach file,$(ARCH_ASM_FILES),cd $(dir $(file)) $(DELIMITER_CHAR) $(RM) $(notdir $(file)) $(DELIMITER_CHAR) cd $(mkfile_dir) $(DELIMITER_CHAR))
 	-$(MAKE) -C boot clean
