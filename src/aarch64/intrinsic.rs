@@ -111,7 +111,7 @@ pub fn disable_trap() -> bool {
         if t != 0 {
             return false;
         }
-        asm!("msr daifset, {}", in(reg) 0xf << 6, options(nostack, preserves_flags));
+        asm!("msr daif, {}", in(reg) 0xf << 6, options(nostack, preserves_flags));
     }
     true
 }

@@ -61,7 +61,7 @@ pub fn interrupt_global_handler() {
             if (map >> i) & 1 != 0 {
                 unsafe {
                     if IRQ_HANDLERS[i] != ptr::null() {
-                        (*())();
+                        (*(IRQ_HANDLERS[i]))();
                     } else {
                         panic!("Unknown interrupt {}", i);
                     }
