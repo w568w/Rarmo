@@ -31,13 +31,13 @@ define_early_init!(init_physical_page_table);
 pub fn kalloc_page() -> *mut u8 {
     ALLOC_PAGE_CNT.fetch_add(1, core::sync::atomic::Ordering::AcqRel);
     let mut binding = KERNEL_PHYSICAL_PT.write();
-    unsafe { _physical2kernel_mut(binding.table.page_alloc()) }
+    _physical2kernel_mut(binding.table.page_alloc())
 }
 
 pub fn kfree_page(page_addr: *mut u8) {
     ALLOC_PAGE_CNT.fetch_sub(1, core::sync::atomic::Ordering::AcqRel);
     let mut binding = KERNEL_PHYSICAL_PT.write();
-    binding.page_free(unsafe { _kernel2physical_mut(page_addr) })
+    binding.page_free(_kernel2physical_mut(page_addr))
 }
 
 pub fn kmalloc(size: usize) -> *mut u8 {

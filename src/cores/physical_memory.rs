@@ -50,7 +50,7 @@ impl LinkedMemoryTable {
         let mut page_addr = start;
         while page_addr < end && self.stack_top < SMALL_PAGE_NUM {
             self.free_page_stack[self.stack_top] = page_addr as usize;
-            page_addr = unsafe { page_addr.offset(PAGE_SIZE as isize) };
+            page_addr = unsafe { page_addr.byte_add(PAGE_SIZE) };
             self.stack_top += 1;
         }
     }

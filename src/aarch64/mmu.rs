@@ -53,11 +53,11 @@ pub const fn kernel2physical(addr: u64) -> u64 {
     addr - KSPACE_MASK
 }
 
-pub const unsafe fn _kernel2physical<T>(addr: *const T) -> *const T {
+pub const fn _kernel2physical<T>(addr: *const T) -> *const T {
     addr.wrapping_offset(KSPACE_MASK.wrapping_neg() as isize)
 }
 
-pub const unsafe fn _kernel2physical_mut<T>(addr: *mut T) -> *mut T {
+pub const fn _kernel2physical_mut<T>(addr: *mut T) -> *mut T {
     addr.wrapping_offset(KSPACE_MASK.wrapping_neg() as isize)
 }
 
@@ -66,11 +66,11 @@ pub const fn physical2kernel(addr: u64) -> u64 {
     addr + KSPACE_MASK
 }
 
-pub const unsafe fn _physical2kernel<T>(addr: *const T) -> *const T {
+pub const fn _physical2kernel<T>(addr: *const T) -> *const T {
     addr.wrapping_offset(KSPACE_MASK as isize)
 }
 
-pub const unsafe fn _physical2kernel_mut<T>(addr: *mut T) -> *mut T {
+pub const fn _physical2kernel_mut<T>(addr: *mut T) -> *mut T {
     addr.wrapping_offset(KSPACE_MASK as isize)
 }
 

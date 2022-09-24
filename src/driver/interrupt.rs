@@ -53,7 +53,7 @@ pub fn interrupt_global_handler() {
     let mut source = get_u32(irq_src_core(get_cpu_id()));
     if source & IRQ_SRC_CNTPNSIRQ != 0 {
         source ^= IRQ_SRC_CNTPNSIRQ;
-        unsafe { clock_handler(); }
+        clock_handler();
     }
     if source & IRQ_SRC_GPU != 0 {
         source ^= IRQ_SRC_GPU;

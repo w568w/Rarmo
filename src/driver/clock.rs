@@ -28,16 +28,18 @@ pub unsafe fn init_clock() {
     put_u32(core_clock_ctrl(get_cpu_id()), CORE_CLOCK_ENABLE);
 }
 
-pub unsafe fn reset_clock(countdown_ms: u64) {
-    asm!("msr cntp_tval_el0, {}", in(reg) (CLOCK.one_ms * countdown_ms));
+pub fn reset_clock(countdown_ms: u64) {
+    unsafe {
+        asm!("msr cntp_tval_el0, {}", in(reg) (CLOCK.one_ms * countdown_ms));
+    }
 }
 
-pub unsafe fn set_clock_handler(handler: fn()) {
-    CLOCK.handler = Some(handler);
+pub fn set_clock_handler(handler: fn()) {
+    unsafe { CLOCK.handler = Some(handler); }
 }
 
-pub unsafe fn clock_handler() {
-    if let Some(func) = CLOCK.handler {
+pub fn clock_handler() {
+    if let Some(func) = unsafe { CLOCK.handler } {
         func();
     } else {
         panic!("clock handler is null");

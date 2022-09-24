@@ -19,7 +19,7 @@ static mut CPUS: [CPU; CPU_NUM] = [CPU { online: false, sched: None }; CPU_NUM];
 fn cpu_clock_handler() {}
 
 pub extern "C" fn init_cpu_clock_handler() {
-    unsafe { set_clock_handler(cpu_clock_handler); }
+    set_clock_handler(cpu_clock_handler);
 }
 
 define_early_init!(init_cpu_clock_handler);
@@ -30,7 +30,7 @@ extern "C" {
 
 pub fn set_cpu_on() {
     assert!(!disable_trap());
-    set_ttbr0_el1(kernel2physical(unsafe { &invalid_pt as *const _ as u64 }));
+    set_ttbr0_el1(kernel2physical(&invalid_pt as *const _ as u64));
     set_vbar_el1(exception_vector as *const u8 as u64);
     reset_esr_el1();
     unsafe {

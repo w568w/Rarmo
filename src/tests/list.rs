@@ -36,7 +36,6 @@ pub fn test_list() {
     list_head.insert_after(data1.as_mut());
     list_head.insert_after(data2.as_mut());
     list_head.insert_after(data3.as_mut());
-    let mut data = list_head.next::<Data>();
     for item in list_head.iter::<Data>() {
         let mut binding = CONSOLE.write();
         let writer = binding.as_mut().unwrap();

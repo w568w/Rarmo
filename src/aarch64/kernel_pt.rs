@@ -226,4 +226,4 @@ pub static mut kernel_pt: Aligned<APageSize, PageTable> = Aligned({
 });
 
 #[no_mangle]
-pub static mut invalid_pt: Aligned<APageSize, RawPageTable> = Aligned([0; N_PTE_PER_TABLE]);
+pub static invalid_pt: Aligned<APageSize, RawPageTable> = Aligned([0; N_PTE_PER_TABLE]);
