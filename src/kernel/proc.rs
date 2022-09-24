@@ -57,4 +57,4 @@ pub unsafe extern "C" fn init_root_process() {
     start_proc(ROOT_PROC.as_mut_ptr(), kernel_entry as *const fn(), 123456);
 }
 
-// define_init!(init_root_process);
+define_init!(init_root_process);

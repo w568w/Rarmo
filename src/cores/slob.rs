@@ -1,11 +1,9 @@
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::round_up;
-use crate::get_cpu_id;
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;
 use core::ptr;
 use spin::Mutex;
-use crate::common::list::ListLink;
 
 /**
  * A simple SLOB implementation.

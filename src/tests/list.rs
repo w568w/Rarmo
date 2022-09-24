@@ -33,9 +33,9 @@ pub fn test_list() {
     let mut data1 = Box::new(Data::new(1));
     let mut data2 = Box::new(Data::new(2));
     let mut data3 = Box::new(Data::new(3));
-    list_head.insert_after(data1.as_mut());
-    list_head.insert_after(data2.as_mut());
-    list_head.insert_after(data3.as_mut());
+    list_head.insert_at_first(data1.as_mut());
+    list_head.insert_at_first(data2.as_mut());
+    list_head.insert_at_first(data3.as_mut());
     for item in list_head.iter::<Data>() {
         let mut binding = CONSOLE.write();
         let writer = binding.as_mut().unwrap();

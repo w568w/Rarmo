@@ -1,5 +1,4 @@
 use core::arch::asm;
-use core::ptr;
 use crate::aarch64::intrinsic::addr::LOCAL_BASE;
 use crate::aarch64::intrinsic::{get_timer_freq, put_u32};
 use crate::get_cpu_id;
@@ -23,7 +22,7 @@ pub unsafe fn init_clock() {
     CLOCK.one_ms = get_timer_freq() / 1000;
 
     // reserve 1s for timer interrupt
-    asm!("msr cntp_ctl_el0, {}", in(reg) 1);
+    asm!("msr cntp_ctl_el0, {}", in(reg) 1u64);
     reset_clock(1000);
     put_u32(core_clock_ctrl(get_cpu_id()), CORE_CLOCK_ENABLE);
 }

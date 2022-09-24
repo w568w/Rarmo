@@ -1,7 +1,6 @@
-use aligned::Aligned;
 use crate::aarch64::intrinsic::{disable_trap, reset_esr_el1, set_ttbr0_el1, set_vbar_el1};
 use crate::aarch64::kernel_pt::invalid_pt;
-use crate::aarch64::mmu::{APageSize, kernel2physical, RawPageTable};
+use crate::aarch64::mmu::kernel2physical;
 use crate::{define_early_init, get_cpu_id};
 use crate::driver::clock::{init_clock, set_clock_handler};
 use crate::kernel::sched::Sched;

@@ -8,7 +8,7 @@ use crate::kernel::sched::{acquire_sched_lock, activate, sched, thisproc};
 
 pub struct Semaphore {
     lock: Mutex<()>,
-    value: usize,
+    value: isize,
     sleep_list: ListLink,
 }
 
@@ -26,7 +26,7 @@ impl ListNode for WaitData {
 }
 
 impl Semaphore {
-    pub fn new(value: usize) -> Self {
+    pub fn new(value: isize) -> Self {
         let mut sem = Self {
             lock: Mutex::new(()),
             value,
@@ -54,7 +54,7 @@ impl Semaphore {
         }
         // Create a WaitData, representing that the current process is in the wait list.
         let mut wait_data = Box::new(WaitData::new());
-        self.sleep_list.insert_after(wait_data.as_mut());
+        self.sleep_list.insert_at_first(wait_data.as_mut());
         // Lock for the scheduler, and tell it that the process is going to sleep.
         let sched_lock = acquire_sched_lock();
         drop(lock);

@@ -3,11 +3,10 @@ use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;
 use crate::kernel::sched::thisproc;
-use crate::panic;
 
 const ESR_EC_SHIFT: i8 = 26;
 const ESR_ISS_MASK: u64 = 0xFFFFFF;
-const ESR_IR_MASK: u64 = (1 << 25);
+const ESR_IR_MASK: u64 = 1 << 25;
 
 const ESR_EC_UNKNOWN: u64 = 0x00;
 const ESR_EC_SVC64: u64 = 0x15;

@@ -29,7 +29,7 @@ impl ListLink {
         self.next = self;
         self.prev = self;
     }
-    pub fn insert_after<T: ListNode>(&mut self, node: *mut T) {
+    pub fn insert_at_first<T: ListNode>(&mut self, node: *mut T) {
         let node_link = unsafe { (*node).get_link() };
         unsafe {
             (*node_link).prev = self;
@@ -56,8 +56,6 @@ impl ListLink {
         }
     }
     pub fn next<T: ListNode>(&self) -> Option<&mut T> {
-        let self_addr = self as *const Self as usize;
-        let next_addr = self.next as usize;
         if self.no_next() {
             None
         } else {
