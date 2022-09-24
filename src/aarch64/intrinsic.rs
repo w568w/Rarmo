@@ -111,9 +111,29 @@ pub fn disable_trap() -> bool {
         if t != 0 {
             return false;
         }
-        asm!("msr daif, {}", in(reg) 0xf << 6, options(nostack, preserves_flags));
+        asm!("msr daif, {}", in(reg) 0xfu64 << 6, options(nostack, preserves_flags));
     }
     true
+}
+
+#[inline(always)]
+pub fn enable_trap() -> bool {
+    let t: u64;
+    unsafe {
+        asm!("mrs {}, daif", out(reg) t, options(nostack, preserves_flags));
+        if t == 0 {
+            return true;
+        }
+        asm!("msr daif, {}", in(reg) 0, options(nostack, preserves_flags));
+    }
+    false
+}
+
+#[inline(always)]
+pub fn wfi() {
+    unsafe {
+        asm!("wfi", options(nostack, preserves_flags));
+    }
 }
 
 // Why don't we need `::: "memory"` here, like what we did in C?

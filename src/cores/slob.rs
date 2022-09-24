@@ -5,7 +5,7 @@ use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;
 use core::ptr;
 use spin::Mutex;
-use crate::common::list::ListNode;
+use crate::common::list::ListLink;
 
 /**
  * A simple SLOB implementation.
@@ -15,7 +15,6 @@ use crate::common::list::ListNode;
  * https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/mm/slob.c?h=linux-2.6.33.y
  */
 
-// todo: the type should be decided by page size.
 type SlobUnit = i16;
 
 const UNIT_SIZE: usize = size_of::<SlobUnit>();
@@ -68,7 +67,11 @@ pub struct KMemCache {
 }
 
 // A structure to describe a linked-list node.
-type SlobPageList = ListNode<SlobPage>;
+#[derive(Clone, Copy)]
+pub struct SlobPageList {
+    pub prev: Option<*mut SlobPage>,
+    pub next: Option<*mut SlobPage>,
+}
 
 impl SlobPageList {
     // Add a page to the head of this list.
@@ -134,7 +137,7 @@ pub fn kmem_cache_alloc_node(cache: &KMemCache) -> Option<*mut u8> {
     if cache.size < PAGE_FREE_SIZE {
         unsafe { slob_alloc(cache.size, cache.align) }
     } else {
-        todo!()
+        None
     }
 }
 

@@ -1,3 +1,8 @@
+use crate::aarch64::intrinsic::{disable_trap, enable_trap, wfi};
+use crate::kernel::cpu::set_cpu_on;
+use crate::kernel::sched::yield_;
+use crate::{set_cpu_off, stop_cpu};
+
 pub mod init;
 pub mod mem;
 pub mod rust_allocator;
@@ -32,4 +37,24 @@ macro_rules! define_init {
             pub static mut [<__init_ $func>] : *const () = $func as *const ();
         }
     };
+}
+
+pub fn idle_entry() -> ! {
+    set_cpu_on();
+    loop {
+        yield_();
+        // todo panic_flag
+        enable_trap();
+        wfi();
+        disable_trap();
+    }
+    set_cpu_off();
+    stop_cpu();
+}
+
+pub fn kernel_entry() -> ! {
+    // todo: test() & do_rest_init()
+    loop {
+        yield_();
+    }
 }

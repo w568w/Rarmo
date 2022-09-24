@@ -39,7 +39,7 @@ mkfile_dir := $(dir $(mkfile_path))
 # -----------------
 PROJECT_NAME := rarmo
 TARGET := aarch64-unknown-none
-DEFAULT_MODE := release
+DEFAULT_MODE := debug
 QEMU_EXECUTABLE := qemu-system-aarch64
 QEMU_DEBUGGING_PORT := 1234
 # You only need to modify the paths below if you are using Windows.
@@ -132,7 +132,6 @@ debug: $(artifact_prefix)
 
 .PHONY:clean
 clean:
-	-cargo clean
 	-cd src && $(RM) entry.asm && cd ..
 	-$(foreach file,$(ARCH_ASM_FILES),cd $(dir $(file)) $(DELIMITER_CHAR) $(RM) $(notdir $(file)) $(DELIMITER_CHAR) cd $(mkfile_dir) $(DELIMITER_CHAR))
 	-$(MAKE) -C boot clean

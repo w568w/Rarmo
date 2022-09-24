@@ -4,6 +4,7 @@ use crate::aarch64::intrinsic::{get_u32, put_u32};
 use crate::{define_early_init, get_cpu_id};
 use crate::driver::clock::clock_handler;
 
+#[allow(non_camel_case_types)]
 #[derive(Clone, Copy)]
 pub enum InterruptType {
     IRQ_AUX = 29,

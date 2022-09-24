@@ -2,6 +2,7 @@ use core::arch::global_asm;
 use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;
+use crate::kernel::sched::thisproc;
 use crate::panic;
 
 const ESR_EC_SHIFT: i8 = 26;
@@ -20,7 +21,9 @@ global_asm!(include_str!("exception_vector.asm"));
 
 #[no_mangle]
 pub extern "C" fn trap_global_handler(context: *mut UserContext) {
-    // todo
+    unsafe {
+        (*thisproc()).user_context = context;
+    }
     let esr = get_esr_el1();
     let exception_class = esr >> ESR_EC_SHIFT;
     let ir = esr & ESR_IR_MASK;
