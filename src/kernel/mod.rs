@@ -1,3 +1,4 @@
+use core::sync::atomic::AtomicBool;
 use crate::aarch64::intrinsic::{disable_trap, enable_trap, wfi};
 use crate::kernel::cpu::set_cpu_on;
 use crate::kernel::sched::yield_;
@@ -9,6 +10,8 @@ pub mod rust_allocator;
 pub mod proc;
 pub mod cpu;
 pub mod sched;
+
+pub static PANIC_FLAG: AtomicBool = AtomicBool::new(false);
 
 #[macro_export]
 macro_rules! define_early_init {
@@ -43,7 +46,9 @@ pub fn idle_entry() -> ! {
     set_cpu_on();
     loop {
         yield_();
-        // todo panic_flag
+        if PANIC_FLAG.load(core::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
         enable_trap();
         wfi();
         disable_trap();

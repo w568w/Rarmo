@@ -83,7 +83,7 @@ impl Semaphore {
             let wait: &mut WaitData = self.sleep_list.last().unwrap();
             wait.up = true;
             wait.link().detach();
-            activate(wait.proc);
+            activate(unsafe { &mut *(wait.proc) });
         }
     }
 }
