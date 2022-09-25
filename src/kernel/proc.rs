@@ -85,7 +85,7 @@ pub fn wait(code: usize) -> usize {
     todo!()
 }
 
-pub unsafe fn init_proc(p: *mut Process) {
+pub unsafe fn init_proc(p: &mut Process) {
     let mut proc = &mut *p;
     proc.fill_default_fields();
     let stack_top = kalloc_page();
@@ -118,9 +118,10 @@ pub fn start_proc(p: &mut Process, entry: *const fn(), arg: usize) -> usize {
 }
 
 pub unsafe extern "C" fn init_root_process() {
-    init_proc(ROOT_PROC.as_mut_ptr());
-    ROOT_PROC.assume_init_mut().parent = Some(ROOT_PROC.as_mut_ptr());
-    start_proc(ROOT_PROC.assume_init_mut(), kernel_entry as *const fn(), 123456);
+    let root = ROOT_PROC.assume_init_mut();
+    init_proc(root);
+    root.parent = Some(ROOT_PROC.as_mut_ptr());
+    start_proc(root, kernel_entry as *const fn(), 123456);
 }
 
 define_init!(init_root_process);

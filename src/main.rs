@@ -1,4 +1,5 @@
 #![feature(pointer_byte_offsets)]
+#![feature(const_pointer_byte_offsets)]
 #![no_std]
 #![no_main]
 

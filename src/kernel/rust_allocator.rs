@@ -15,7 +15,7 @@ unsafe impl GlobalAlloc for KernelSlobAllocator {
         }).expect("Unable to allocate memory from SLOB")
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+    unsafe fn dealloc(&self, ptr: *mut u8, _: Layout) {
         slob::dealloc_node(ptr);
     }
 }

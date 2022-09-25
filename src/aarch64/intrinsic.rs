@@ -171,14 +171,14 @@ pub fn get_timestamp() -> u64 {
 // barriers, since they are intended to access device memory regions. These
 // regions are already marked as nGnRnE in `kernel_pt`.
 pub fn put_u32(address: u64, value: u32) {
-    let ptr = unsafe { &mut *(address as *mut u32) };
+    let ptr = address as *mut u32 ;
     unsafe {
         write_volatile(ptr, value);
     }
 }
 
 pub fn get_u32(address: u64) -> u32 {
-    let ptr = unsafe { &mut *(address as *mut u32) };
+    let ptr = address as *mut u32 ;
     unsafe { read_volatile(ptr) }
 }
 

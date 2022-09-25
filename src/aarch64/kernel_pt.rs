@@ -198,7 +198,7 @@ pub static mut _kernel_pt_level2: Aligned<APageSize, PageTable> = Aligned({
             _kernel2physical(
                 // `mem::transmute<From,To>` is an unsafe function that converts a value of type `From` to a value of type `To`,
                 // in a very brute-force way. It never checks whether the conversion is valid.
-                // It is, ehhh, incredibly unsafe, so we need to be very careful when using it.
+                // It is, emmm, incredibly unsafe, so we need to be very careful when using it.
                 // But do not worry, we are using it in a safe way here.
                 //
                 // It is used here to convert a pointer of this very-very-long-named type, `&_kernel_pt_level3`, to a pointer of `u8`.
