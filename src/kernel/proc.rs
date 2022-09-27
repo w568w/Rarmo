@@ -8,6 +8,7 @@ use crate::kernel::sched::{activate, thisproc, SchInfo};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
+use crate::common::pool::LockedArrayPool;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
 
@@ -17,6 +18,13 @@ pub enum ProcessState {
     Running,
     Sleeping,
     Zombie,
+}
+
+const PID_POOL_SIZE: usize = 1000;
+static PID_POOL: LockedArrayPool<usize, PID_POOL_SIZE> = LockedArrayPool::new();
+
+const fn pid_generator(fill_count: usize, i: usize) -> usize {
+    PID_POOL_SIZE * fill_count + i + 1
 }
 
 #[repr(C)]
@@ -108,7 +116,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.kernel_context =
         proc.user_context
             .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
-    // todo PID
+    proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // todo concurrency
 }
 
