@@ -72,8 +72,15 @@ impl Semaphore {
         wait_data.up
     }
 
-    // todo get_all()
-
+    pub fn try_get_all(&mut self) -> bool {
+        let _lock = self.lock.lock();
+        if self.value > 0 {
+            self.value = 0;
+            true
+        } else {
+            false
+        }
+    }
     pub fn post(&mut self) {
         let _lock = self.lock.lock();
         self.value += 1;
