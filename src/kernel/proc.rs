@@ -2,7 +2,7 @@ use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::list::ListLink;
 use crate::common::sem::Semaphore;
 use crate::define_init;
-use crate::kernel::kernel_entry;
+use crate::kernel::{get_kernel_stack_bottom, kernel_entry};
 use crate::kernel::mem::kalloc_page;
 use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry};
 use alloc::boxed::Box;
@@ -143,6 +143,14 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
     let pid = p.pid;
     activate(p);
     pid
+}
+
+pub fn create_idle_process() -> Box<Process> {
+    let mut proc: Box<Process> = Default::default();
+    proc.state = ProcessState::Running;
+    proc.idle = true;
+    proc.kernel_stack = get_kernel_stack_bottom();
+    proc
 }
 
 pub unsafe extern "C" fn init_root_process() {

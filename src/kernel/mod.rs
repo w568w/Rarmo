@@ -2,7 +2,7 @@ use core::sync::atomic::AtomicBool;
 use crate::aarch64::intrinsic::{disable_trap, enable_trap, wfi};
 use crate::kernel::cpu::set_cpu_on;
 use crate::kernel::sched::yield_;
-use crate::{set_cpu_off, stop_cpu};
+use crate::{get_cpu_id, set_cpu_off, stop_cpu};
 
 pub mod init;
 pub mod mem;
@@ -12,6 +12,7 @@ pub mod cpu;
 pub mod sched;
 
 pub static PANIC_FLAG: AtomicBool = AtomicBool::new(false);
+pub const KERNEL_STACK_SIZE: usize = 4096;
 
 #[macro_export]
 macro_rules! define_early_init {
@@ -40,6 +41,15 @@ macro_rules! define_init {
             pub static mut [<__init_ $func>] : *const () = $func as *const ();
         }
     };
+}
+
+extern "C" {
+    fn boot_stack_top();
+}
+
+pub fn get_kernel_stack_bottom() -> *mut u8 {
+    let stack_bottom = boot_stack_top as usize;
+    (stack_bottom - get_cpu_id() * KERNEL_STACK_SIZE) as *mut u8
 }
 
 pub fn idle_entry() -> ! {

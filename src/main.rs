@@ -1,5 +1,8 @@
 #![feature(pointer_byte_offsets)]
 #![feature(const_pointer_byte_offsets)]
+#![feature(maybe_uninit_uninit_array)]
+#![feature(const_maybe_uninit_uninit_array)]
+#![feature(const_mut_refs)]
 #![no_std]
 #![no_main]
 

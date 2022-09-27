@@ -1,9 +1,13 @@
+use crate::kernel::proc::{exit, KernelContext, Process, ProcessState};
 use core::arch::global_asm;
 use spin::{Mutex, MutexGuard};
-use crate::kernel::proc::{exit, KernelContext, Process, ProcessState};
 
-#[derive(Debug, Clone, Copy)]
-pub struct Sched {}
+use super::cpu::get_cpu_info;
+
+pub struct Sched {
+    pub cur_proc: Option<*mut Process>,
+    pub idle_proc: Option<*mut Process>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct SchInfo {}
@@ -15,13 +19,19 @@ extern "C" {
     fn swtch(new: *mut KernelContext, old: *mut *mut KernelContext);
 }
 
+#[inline(always)]
 pub fn yield_() {
     let _lock = acquire_sched_lock();
     sched(_lock, ProcessState::Runnable);
 }
 
+fn get_cpu_sched() -> &'static mut Sched {
+    &mut get_cpu_info().sched
+}
+
 pub fn thisproc() -> &'static mut Process {
-    todo!("thisproc");
+    let proc = get_cpu_sched().cur_proc.unwrap();
+    unsafe { &mut *proc }
 }
 
 pub fn activate(proc: &mut Process) {
@@ -51,12 +61,24 @@ pub unsafe fn force_release_sched_lock() {
     SCHED_LOCK.force_unlock();
 }
 
-fn update_this_proc(proc: &mut Process) {
-    todo!();
+// Update the current CPU's process to the next process.
+// Since all processes are in a single queue, we are more likely to pass in a pointer than a reference.
+fn update_this_proc(proc: *mut Process) {
+    get_cpu_sched().cur_proc = Some(proc);
 }
 
+pub fn start_idle_proc() {
+    let lock = acquire_sched_lock();
+    let idle_proc = get_cpu_sched().idle_proc.unwrap();
+    update_this_proc(idle_proc);
+    release_sched_lock(lock);
+}
+
+// Choose the next process to run.
 fn pick_next() -> &'static mut Process {
-    todo!()
+    // todo
+    let mut proc = get_cpu_sched().idle_proc.unwrap();
+    unsafe { &mut *proc }
 }
 
 fn update_this_state(state: ProcessState) {
@@ -88,4 +110,12 @@ pub extern "C" fn proc_entry(real_entry: *const fn(usize), arg: usize) -> ! {
         (*real_entry)(arg);
     }
     exit(0);
+}
+impl Sched {
+    pub const fn uninit() -> Self {
+        Sched {
+            cur_proc: None,
+            idle_proc: None,
+        }
+    }
 }
