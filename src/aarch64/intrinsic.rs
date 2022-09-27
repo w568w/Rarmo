@@ -124,7 +124,7 @@ pub fn enable_trap() -> bool {
         if t == 0 {
             return true;
         }
-        asm!("msr daif, {}", in(reg) 0, options(nostack, preserves_flags));
+        asm!("msr daif, {}", in(reg) 0u64, options(nostack, preserves_flags));
     }
     false
 }

@@ -36,13 +36,14 @@ fn panic(_info: &PanicInfo) -> ! {
     // Force to unlock the write lock on console.
     unsafe { CONSOLE.force_write_unlock() }
     PANIC_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
-    set_cpu_off();
-    wait_all_cpu_off();
     let mut writer = CONSOLE.write();
     if let Some(writer) = writer.as_mut() {
         let _ = write!(writer, "\n\nKernel panic: {:?}\n", _info);
     }
     drop(lock);
+    drop(writer);
+    set_cpu_off();
+    wait_all_cpu_off();
     stop_cpu();
 }
 
