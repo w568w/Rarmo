@@ -4,7 +4,7 @@ use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::kernel_entry;
 use crate::kernel::mem::kalloc_page;
-use crate::kernel::sched::{activate, thisproc, SchInfo};
+use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
@@ -128,13 +128,17 @@ pub fn create_proc() -> *mut Process {
     Box::leak(p)
 }
 
-pub fn start_proc(p: &mut Process, entry: *const fn(), arg: usize) -> usize {
+pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize {
     // todo concurrency
     // If the process does not have a parent, its parent is the root process.
     if p.parent.is_none() {
         p.parent = Some(unsafe { ROOT_PROC.as_mut_ptr() });
     }
-    // todo setup the kernel context
+    // Set the entry point of the process.
+    let kcontext = unsafe { &mut *(p.kernel_context) };
+    kcontext.x0[0] = entry as u64;
+    kcontext.x0[1] = arg as u64;
+    kcontext.x19[11] = proc_entry as *const extern "C" fn(*const fn(usize), usize) as u64;
 
     let pid = p.pid;
     activate(p);
@@ -145,7 +149,7 @@ pub unsafe extern "C" fn init_root_process() {
     let root = ROOT_PROC.assume_init_mut();
     init_proc(root);
     root.parent = Some(ROOT_PROC.as_mut_ptr());
-    start_proc(root, kernel_entry as *const fn(), 123456);
+    start_proc(root, kernel_entry as *const fn(usize), 123456);
 }
 
 define_init!(init_root_process);

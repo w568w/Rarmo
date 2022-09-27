@@ -57,7 +57,7 @@ pub fn idle_entry() -> ! {
     stop_cpu();
 }
 
-pub fn kernel_entry() -> ! {
+pub fn kernel_entry(_arg: usize) -> ! {
     // todo: test() & do_rest_init()
     loop {
         yield_();

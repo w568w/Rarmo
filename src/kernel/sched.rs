@@ -1,6 +1,6 @@
 use core::arch::global_asm;
 use spin::{Mutex, MutexGuard};
-use crate::kernel::proc::{KernelContext, Process, ProcessState};
+use crate::kernel::proc::{exit, KernelContext, Process, ProcessState};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Sched {}
@@ -47,6 +47,10 @@ pub fn release_sched_lock(_sched_lock: MutexGuard<()>) {
     // We don't need to do anything here, since the MutexGuard will be dropped at the end of this scope.
 }
 
+pub unsafe fn force_release_sched_lock() {
+    SCHED_LOCK.force_unlock();
+}
+
 fn update_this_proc(proc: &mut Process) {
     todo!();
 }
@@ -76,4 +80,12 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     }
     // When executing this line, we have been back to the process that was running before the call to `sched`.
     release_sched_lock(sched_lock);
+}
+
+pub extern "C" fn proc_entry(real_entry: *const fn(usize), arg: usize) -> ! {
+    unsafe {
+        force_release_sched_lock();
+        (*real_entry)(arg);
+    }
+    exit(0);
 }
