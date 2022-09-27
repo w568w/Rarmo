@@ -1,12 +1,10 @@
 use core::marker::PhantomData;
 use core::ptr;
 
-
 pub struct ListLink {
     pub prev: *mut ListLink,
     pub next: *mut ListLink,
 }
-
 pub trait ListNode {
     fn get_link(&mut self) -> *mut ListLink {
         let ptr = self as *mut Self as *mut ListLink;
@@ -88,15 +86,18 @@ pub struct IterationInfo<T> {
     typ: PhantomData<T>,
 }
 
-impl<T: ListNode> Iterator for IterationInfo<T> {
-    type Item = *mut T;
+impl<T: ListNode + 'static> Iterator for IterationInfo<T> {
+    type Item = &'static mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.head == unsafe { (*(self.cur)).next } {
             None
         } else {
             self.cur = unsafe { (*(self.cur)).next };
-            Some(unsafe { (*(self.cur)).container::<T>() })
+            Some(unsafe {
+                let container = (*(self.cur)).container::<T>();
+                &mut *container
+            })
         }
     }
 }

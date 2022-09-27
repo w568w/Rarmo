@@ -39,6 +39,6 @@ pub fn test_list() {
     for item in list_head.iter::<Data>() {
         let mut binding = CONSOLE.write();
         let writer = binding.as_mut().unwrap();
-        write!(writer, "{}\n", unsafe { (*item).val });
+        write!(writer, "{}\n", item.val).expect("write failed");
     }
 }

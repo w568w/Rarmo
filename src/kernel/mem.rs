@@ -5,7 +5,7 @@ use crate::common::round_up;
 use crate::cores::physical_memory::{LinkedMemoryTable, PhysicalMemory, PhysicalMemoryTable};
 use crate::cores::slob;
 use crate::cores::slob::KMemCache;
-use crate::{define_early_init};
+use crate::define_early_init;
 
 // Why cannot leave the value here as None, and then create it in `init_physical_page_table`?
 //

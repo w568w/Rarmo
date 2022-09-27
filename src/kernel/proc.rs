@@ -1,13 +1,13 @@
-use alloc::boxed::Box;
-use core::mem::MaybeUninit;
-use core::ptr;
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::common::list::ListLink;
 use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::kernel_entry;
 use crate::kernel::mem::kalloc_page;
-use crate::kernel::sched::{activate, SchInfo, thisproc};
+use crate::kernel::sched::{activate, thisproc, SchInfo};
+use alloc::boxed::Box;
+use core::mem::MaybeUninit;
+use core::ptr;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
 
@@ -20,12 +20,23 @@ pub enum ProcessState {
 }
 
 #[repr(C)]
-pub struct UserContext {}
+pub struct UserContext {
+    pub spsr_el1: u64,
+    pub elr_el1: u64,
+    // q0-q31
+    pub q: [f64; 64],
+    // x0-x31
+    pub x: [u64; 32],
+}
 
 #[repr(C)]
 pub struct KernelContext {
+    // q0-q31
+    pub q: [f64; 64],
+    // x0-x7
+    pub x0: [u64; 8],
     // x19-x30
-    pub x: [usize; 12],
+    pub x19: [u64; 12],
 }
 
 #[repr(C)]
@@ -90,8 +101,13 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.fill_default_fields();
     let stack_top = kalloc_page();
     proc.kernel_stack = stack_top.byte_add(PAGE_SIZE);
-    proc.user_context = proc.kernel_stack.byte_sub(16).byte_sub(core::mem::size_of::<UserContext>()) as *mut UserContext;
-    proc.kernel_context = proc.user_context.byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
+    proc.user_context = proc
+        .kernel_stack
+        .byte_sub(16)
+        .byte_sub(core::mem::size_of::<UserContext>()) as *mut UserContext;
+    proc.kernel_context =
+        proc.user_context
+            .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     // todo PID
     // todo concurrency
 }
