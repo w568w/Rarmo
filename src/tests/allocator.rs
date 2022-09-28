@@ -1,11 +1,11 @@
 #![allow(non_upper_case_globals)]
+
 use core::sync::atomic::AtomicUsize;
-use crate::{CONSOLE, dsb_sy, get_cpu_id};
+use crate::{dsb_sy, get_cpu_id, println};
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::kernel::mem::{ALLOC_PAGE_CNT, kfree};
 use rand::prelude::*;
 use crate::common::round_up;
-use core::fmt::Write;
 use rand::distributions::Uniform;
 use crate::aarch64::intrinsic::get_time_us;
 
@@ -34,10 +34,7 @@ pub unsafe fn alloc_test() {
     let y = 10000 - i * 500;
 
     if i == 0 {
-        let mut binding = CONSOLE.write();
-        let writer = binding.as_mut().unwrap();
-        write!(writer, "alloc_test\n").unwrap();
-        drop(binding);
+        println!("alloc test start");
     }
     sync(1);
     for j in 0..y {
@@ -117,10 +114,7 @@ pub unsafe fn alloc_test() {
 
     sync(4);
     if i == 0 {
-        let mut binding = CONSOLE.write();
-        let writer = binding.as_mut().unwrap();
-        write!(writer, "Usage: {}, time: {} us\n", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) - r, get_time_us() - start).unwrap();
-        drop(binding);
+        println!("Usage: {}, time: {} us", ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) - r, get_time_us() - start);
     }
     sync(5);
     for j in 0..10000 {
@@ -128,9 +122,6 @@ pub unsafe fn alloc_test() {
     }
     sync(6);
     if i == 0 {
-        let mut binding = CONSOLE.write();
-        let writer = binding.as_mut().unwrap();
-        write!(writer, "alloc_test PASS\n").unwrap();
-        drop(binding);
+        println!("alloc test PASS");
     }
 }

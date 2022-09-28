@@ -1,20 +1,35 @@
 use core::fmt;
 
-use spin::Mutex;
+use spin::{Mutex, RwLock};
 
 use crate::driver::CharDevice;
+use crate::{define_early_init, UartDevice};
+
+pub static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(None);
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    CONSOLE.write().as_mut().unwrap().write_fmt(args).expect("print to console failed");
+}
+
+pub unsafe extern "C" fn init_console() {
+    let mut binding = CONSOLE.write();
+    *binding = Some(ConsoleContext::new(UartDevice));
+}
+define_early_init!(init_console);
 
 pub struct ConsoleContext<T>
-where
-    T: CharDevice,
+    where
+        T: CharDevice,
 {
     pub lock: Mutex<u32>,
     pub device: T,
 }
 
 impl<T> ConsoleContext<T>
-where
-    T: CharDevice,
+    where
+        T: CharDevice,
 {
     pub fn new(device: T) -> Self {
         device.init();

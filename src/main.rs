@@ -20,11 +20,11 @@ use core::arch::global_asm;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::sync::atomic::AtomicBool;
-use spin::{Mutex, RwLock};
-use cores::console::ConsoleContext;
+use spin::Mutex;
 use driver::uart::UartDevice;
 use aarch64::intrinsic::{get_cpu_id, stop_cpu};
 use crate::aarch64::intrinsic::dsb_sy;
+use crate::cores::console::CONSOLE;
 use crate::kernel::cpu::{set_cpu_off, wait_all_cpu_off};
 use crate::kernel::{idle_entry, PANIC_FLAG};
 use crate::tests::list::test_list;
@@ -33,24 +33,20 @@ global_asm!(include_str!("entry.asm"));
 
 static PANIC_LOCK: Mutex<()> = Mutex::new(());
 
+
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     let lock = PANIC_LOCK.lock();
     // Force to unlock the write lock on console.
     unsafe { CONSOLE.force_write_unlock() }
     PANIC_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
-    let mut writer = CONSOLE.write();
-    if let Some(writer) = writer.as_mut() {
-        let _ = write!(writer, "\n\nKernel panic: {:?}\n", _info);
-    }
+    println!("\n\nKernel panic: {:?}", _info);
     drop(lock);
-    drop(writer);
     set_cpu_off();
     wait_all_cpu_off();
     stop_cpu();
 }
 
-pub static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(None);
 
 static KERNEL_INITED: AtomicBool = AtomicBool::new(false);
 
@@ -76,11 +72,7 @@ pub fn main() -> ! {
     idle_entry();
 }
 
-pub unsafe extern "C" fn init_console() {
-    let mut binding = CONSOLE.write();
-    *binding = Some(ConsoleContext::new(UartDevice));
-}
-define_early_init!(init_console);
+
 
 
 // Clean up the BSS section with zero.

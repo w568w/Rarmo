@@ -1,8 +1,8 @@
 use alloc::boxed::Box;
 use field_offset::offset_of;
 use crate::common::list::{InplaceFilter, ListLink, ListNode};
-use crate::CONSOLE;
 use core::fmt::Write;
+use crate::println;
 
 #[repr(C)]
 struct Data {
@@ -37,16 +37,12 @@ pub fn test_list() {
     list_head.insert_at_first(data2.as_mut());
     list_head.insert_at_first(data3.as_mut());
     for item in list_head.iter::<Data>(true) {
-        let mut binding = CONSOLE.write();
-        let writer = binding.as_mut().unwrap();
-        write!(writer, "{}\n", item.val).expect("write failed");
+        println!("{}", item.val);
     }
     list_head.iter::<Data>(true).filter_inplace(|item| {
         false
     }, None);
     for item in list_head.iter::<Data>(true) {
-        let mut binding = CONSOLE.write();
-        let writer = binding.as_mut().unwrap();
-        write!(writer, "{}\n", item.val).expect("write failed");
+        println!("{}", item.val);
     }
 }
