@@ -5,6 +5,7 @@ pub struct ListLink {
     pub prev: *mut ListLink,
     pub next: *mut ListLink,
 }
+
 pub trait ListNode {
     fn get_link(&mut self) -> *mut ListLink {
         let ptr = self as *mut Self as *mut ListLink;
@@ -36,6 +37,17 @@ impl ListLink {
         }
         self.next = node_link;
     }
+
+    pub fn merge(&mut self, other: &mut ListLink) {
+        let other_next = other.next;
+        other.next = self.next;
+        self.next = other_next;
+        unsafe {
+            (*(other.next)).prev = other;
+            (*(self.next)).prev = self;
+        }
+    }
+
     pub fn no_next(&self) -> bool {
         let self_addr = self as *const Self as usize;
         let next_addr = self.next as usize;
@@ -46,7 +58,7 @@ impl ListLink {
         unsafe { ptr.byte_sub(T::get_link_offset()) }
     }
 
-    pub fn last<T: ListNode>(&self) -> Option<&mut T> {
+    pub fn prev<T: ListNode>(&self) -> Option<&mut T> {
         if self.no_next() {
             None
         } else {
@@ -58,6 +70,14 @@ impl ListLink {
             None
         } else {
             unsafe { (*(self.next)).container::<T>().as_mut() }
+        }
+    }
+
+    pub fn next_ptr<T: ListNode>(&self) -> Option<*mut T> {
+        if self.no_next() {
+            None
+        } else {
+            Some(unsafe { (*(self.next)).container::<T>() })
         }
     }
 

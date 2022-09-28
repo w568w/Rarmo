@@ -87,7 +87,7 @@ impl Semaphore {
         if self.value <= 0 {
             assert!(!self.sleep_list.no_next());
             // If there is someone waiting, wake up the last one.
-            let wait: &mut WaitData = self.sleep_list.last().unwrap();
+            let wait: &mut WaitData = self.sleep_list.prev().unwrap();
             wait.up = true;
             wait.link().detach();
             activate(unsafe { &mut *(wait.proc) });
