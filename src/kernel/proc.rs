@@ -14,6 +14,10 @@ use crate::common::pool::LockedArrayPool;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
 
+pub fn root_proc() -> &'static mut Process {
+    unsafe { ROOT_PROC.assume_init_mut() }
+}
+
 pub enum ProcessState {
     Unused,
     Runnable,
@@ -115,16 +119,16 @@ impl Process {
 
     pub fn transfer_all_children_to_root(&mut self) {
         // If I am the root, I don't need to do anything.
-        if self.pid == unsafe { ROOT_PROC.assume_init_ref() }.pid {
+        if self.pid == root_proc().pid {
             return;
         }
         if let Some(first_child) = self.first_child {
             let mut first_child = unsafe { &mut *first_child };
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
-                child.parent = Some(unsafe { ROOT_PROC.as_mut_ptr() });
+                child.parent = Some(root_proc());
             }
-            unsafe { ROOT_PROC.assume_init_mut() }.attach_children(first_child);
+            root_proc().attach_children(first_child);
         }
         self.first_child = None;
     }
@@ -150,7 +154,7 @@ impl Process {
     }
 
     pub fn killable(&self) -> bool {
-        !self.idle && !self.killed && self.pid != unsafe { ROOT_PROC.assume_init_ref() }.pid
+        !self.idle && !self.killed && self.pid != root_proc().pid
     }
 }
 
@@ -260,10 +264,10 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
     // If the process does not have a parent, its parent is the root process.
     let lock = PROC_LOCK.lock();
     if p.parent.is_none() {
-        p.parent = Some(unsafe { ROOT_PROC.as_mut_ptr() });
+        p.parent = Some(root_proc());
         // If `p` itself is not the root process, attach it to the root process.
-        if p.pid != unsafe { ROOT_PROC.assume_init_ref() }.pid {
-            unsafe { ROOT_PROC.assume_init_mut() }.attach_child(p);
+        if p.pid != root_proc().pid {
+            root_proc().attach_child(p);
         }
     }
     drop(lock);
@@ -287,9 +291,9 @@ pub fn create_idle_process() -> Box<Process> {
 }
 
 pub unsafe extern "C" fn init_root_process() {
-    let root = ROOT_PROC.assume_init_mut();
+    let root = root_proc();
     init_proc(root);
-    root.parent = Some(ROOT_PROC.as_mut_ptr());
+    root.parent = Some(root_proc());
     start_proc(root, kernel_entry as *const fn(usize), 123456);
 }
 
