@@ -49,7 +49,7 @@ impl Semaphore {
         let lock = self.lock.lock();
         self.value -= 1;
         if self.value >= 0 {
-            // We have enough resources, so we can return!
+            // We have enough resources, so we can return immediately!
             return true;
         }
         // Create a WaitData, representing that the current process is in the wait list.
@@ -85,7 +85,7 @@ impl Semaphore {
         let _lock = self.lock.lock();
         self.value += 1;
         if self.value <= 0 {
-            assert!(!self.sleep_list.no_next());
+            assert!(!self.sleep_list.is_single());
             // If there is someone waiting, wake up the last one.
             let wait: &mut WaitData = self.sleep_list.prev().unwrap();
             wait.up = true;

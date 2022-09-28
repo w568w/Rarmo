@@ -48,36 +48,39 @@ impl ListLink {
         }
     }
 
-    pub fn no_next(&self) -> bool {
+    pub fn is_single(&self) -> bool {
         let self_addr = self as *const Self as usize;
         let next_addr = self.next as usize;
         next_addr == self_addr
     }
-    pub fn container<T: ListNode>(&mut self) -> *mut T {
+    pub fn container_ptr<T: ListNode>(&mut self) -> *mut T {
         let ptr = self as *mut Self as *mut T;
         unsafe { ptr.byte_sub(T::get_link_offset()) }
     }
 
+    pub fn container<T: ListNode>(&mut self) -> &mut T {
+        unsafe { &mut *self.container_ptr::<T>() }
+    }
     pub fn prev<T: ListNode>(&self) -> Option<&mut T> {
-        if self.no_next() {
+        if self.is_single() {
             None
         } else {
-            unsafe { (*(self.prev)).container::<T>().as_mut() }
+            unsafe { (*(self.prev)).container_ptr::<T>().as_mut() }
         }
     }
     pub fn next<T: ListNode>(&self) -> Option<&mut T> {
-        if self.no_next() {
+        if self.is_single() {
             None
         } else {
-            unsafe { (*(self.next)).container::<T>().as_mut() }
+            unsafe { (*(self.next)).container_ptr::<T>().as_mut() }
         }
     }
 
     pub fn next_ptr<T: ListNode>(&self) -> Option<*mut T> {
-        if self.no_next() {
+        if self.is_single() {
             None
         } else {
-            Some(unsafe { (*(self.next)).container::<T>() })
+            Some(unsafe { (*(self.next)).container_ptr::<T>() })
         }
     }
 
@@ -90,11 +93,13 @@ impl ListLink {
         self.next = self;
     }
 
-    pub fn iter<T>(&mut self) -> IterationInfo<T> {
+    pub fn iter<T>(&mut self, skip_self: bool) -> IterationInfo<T> {
         IterationInfo {
             head: self as *mut Self,
             cur: self as *mut Self,
             typ: PhantomData,
+            skip_head: skip_self,
+            has_walked_head: false,
         }
     }
 }
@@ -104,20 +109,73 @@ pub struct IterationInfo<T> {
     head: *mut ListLink,
     cur: *mut ListLink,
     typ: PhantomData<T>,
+    skip_head: bool,
+    has_walked_head: bool,
 }
 
 impl<T: ListNode + 'static> Iterator for IterationInfo<T> {
     type Item = &'static mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.head == unsafe { (*(self.cur)).next } {
-            None
-        } else {
+        // If we have walked over `head` again, we should stop
+        if self.head == self.cur && self.has_walked_head {
+            return None;
+        }
+        // If `head` is the only element and we skip it, we should stop
+        if unsafe { (*(self.head)).is_single() } && self.skip_head {
+            return None;
+        }
+
+        // Now we have walked over `head` at least once, so set `has_walked_head` to true
+        self.has_walked_head = true;
+        if self.skip_head {
+            self.skip_head = false;
             self.cur = unsafe { (*(self.cur)).next };
-            Some(unsafe {
-                let container = (*(self.cur)).container::<T>();
-                &mut *container
-            })
+        }
+
+        let ret = unsafe { (*(self.cur)).container::<T>() };
+        self.cur = unsafe { (*(self.cur)).next };
+        Some(ret)
+    }
+}
+
+pub trait InplaceFilter {
+    type Item;
+    fn filter_inplace(self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>);
+}
+
+impl<T: ListNode + 'static> InplaceFilter for IterationInfo<T> {
+    type Item = &'static mut T;
+
+    fn filter_inplace(mut self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>) {
+        loop {
+            // If we have walked over `head` again, we should stop
+            if self.head == self.cur && self.has_walked_head {
+                break;
+            }
+            // If `head` is the only element and we skip it, we should stop
+            if unsafe { (*(self.head)).is_single() } && self.skip_head {
+                break;
+            }
+            self.has_walked_head = true;
+
+            if self.skip_head {
+                self.skip_head = false;
+                self.cur = unsafe { (*(self.cur)).next };
+            }
+
+            let cur_container = unsafe { (*(self.cur)).container::<T>() };
+            let next = unsafe { (*(self.cur)).next };
+            if !f(cur_container) {
+                if unsafe { (*(self.cur)).is_single() } {
+                    panic!("Trying to remove the last element of the list!");
+                }
+                unsafe { (*(self.cur)).detach() };
+                if let Some(after_detach) = after_detach {
+                    after_detach(unsafe { (*(self.cur)).container::<T>() });
+                }
+            }
+            self.cur = next;
         }
     }
 }

@@ -88,10 +88,11 @@ impl Process {
         self.kernel_context = ptr::null_mut();
     }
 
+    // All functions below do not acquire the lock. You MUST lock the process tree before calling them!
+
     // Attach a new child to the process.
     // It will also set the child's parent to this process.
     pub fn attach_child(&mut self, child: &mut Process) {
-        let _lock = PROC_LOCK.lock();
         child.parent = Some(self);
         if let Some(first_child) = self.first_child {
             let mut first_child = unsafe { &mut *first_child };
@@ -113,11 +114,14 @@ impl Process {
     }
 
     pub fn transfer_all_children_to_root(&mut self) {
-        let _lock = PROC_LOCK.lock();
+        // If I am the root, I don't need to do anything.
+        if self.pid == unsafe { ROOT_PROC.assume_init_ref() }.pid {
+            return;
+        }
         if let Some(first_child) = self.first_child {
             let mut first_child = unsafe { &mut *first_child };
             // Merge the child list to the root process's child list.
-            for child in first_child.link().iter::<Process>() {
+            for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(unsafe { ROOT_PROC.as_mut_ptr() });
             }
             unsafe { ROOT_PROC.assume_init_mut() }.attach_children(first_child);
@@ -126,11 +130,10 @@ impl Process {
     }
 
     pub fn detach_child(&mut self, child: &mut Process) {
-        let _lock = PROC_LOCK.lock();
         child.parent = None;
         if let Some(first_child) = self.first_child {
             let mut first_child = unsafe { &mut *first_child };
-            if first_child.link().no_next() {
+            if first_child.link().is_single() {
                 // If the first child is the only child, we can just set the first child to `None`.
                 self.first_child = None;
             } else {
@@ -167,35 +170,54 @@ pub fn exit(code: usize) -> ! {
     let proc = thisproc();
     proc.exit_code = code;
 
-    // Detach from parent.
-    if let Some(parent) = proc.parent {
-        let parent = unsafe { &mut *parent };
-        parent.child_exit.post();
-        parent.detach_child(proc);
-    }
-    // Clean up resources.
+    // Clean up stack and context.
     if proc.killable() {
         kfree_page(unsafe { proc.kernel_stack.byte_sub(PAGE_SIZE) });
         proc.kernel_context = ptr::null_mut();
         proc.user_context = ptr::null_mut();
     }
     proc.killed = true;
+
     // Transfer all children to the root process.
+    let p_lock = PROC_LOCK.lock();
     proc.transfer_all_children_to_root();
-    // todo notify the root_proc if there is zombie
+    drop(p_lock);
+    // Notify the parent that it is exiting.
+    if let Some(parent) = proc.parent {
+        unsafe { (*parent).child_exit.post() };
+    }
+
+    // This process is a zombie, and will be cleaned up by the parent's wait().
     let lock = acquire_sched_lock();
+
     sched(lock, ProcessState::Zombie);
 
     panic!("Zombie process should not be scheduled");
 }
 
-pub fn wait() -> Option<usize> {
-    let _lock = PROC_LOCK.lock();
+pub fn wait() -> Option<(usize, usize)> {
     let proc = thisproc();
     if proc.first_child.is_none() {
         return None;
     }
-    todo!()
+    // Wait for a child to exit.
+    let _ = proc.child_exit.get_or_wait();
+
+    let lock = PROC_LOCK.lock();
+    let child = proc.first_child.unwrap();
+    let child = unsafe { &mut *child };
+    for x in child.link().iter::<Process>(false) {
+        if matches!(x.state, ProcessState::Zombie) {
+            let exit_code = x.exit_code;
+            let pid = x.pid;
+            proc.detach_child(x);
+            // Scheduler has removed it and parent has detached it, so we can free it.
+            let _proc_to_be_dropped = unsafe { Box::from_raw(x) };
+            return Some((pid, exit_code));
+        }
+    }
+    drop(lock);
+    panic!("child_exit is posted, but no zombie child is found!");
 }
 
 // Create a new process.
@@ -215,6 +237,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.
     if let Some(parent) = try_thisproc() {
+        let _lock = PROC_LOCK.lock();
         parent.attach_child(proc);
     }
 }
@@ -235,6 +258,7 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
         panic!("cannot start IDLE process");
     }
     // If the process does not have a parent, its parent is the root process.
+    let lock = PROC_LOCK.lock();
     if p.parent.is_none() {
         p.parent = Some(unsafe { ROOT_PROC.as_mut_ptr() });
         // If `p` itself is not the root process, attach it to the root process.
@@ -242,6 +266,7 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
             unsafe { ROOT_PROC.assume_init_mut() }.attach_child(p);
         }
     }
+    drop(lock);
     // Set the entry point of the process.
     let kcontext = unsafe { &mut *(p.kernel_context) };
     kcontext.x0[0] = entry as u64;
