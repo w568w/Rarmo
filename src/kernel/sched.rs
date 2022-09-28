@@ -38,6 +38,14 @@ fn get_cpu_sched() -> &'static mut Sched {
     &mut get_cpu_info().sched
 }
 
+#[inline(always)]
+pub fn is_dead(proc: &Process) -> bool {
+    let lock = acquire_sched_lock();
+    let ret = matches!(proc.state, ProcessState::Zombie) || proc.killed;
+    release_sched_lock(lock);
+    ret
+}
+
 pub fn try_thisproc() -> Option<&'static mut Process> {
     let proc = get_cpu_sched().cur_proc;
     proc.map(|proc| unsafe { &mut *proc })

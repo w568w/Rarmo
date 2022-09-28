@@ -4,7 +4,7 @@ use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::{get_kernel_stack_bottom, kernel_entry};
 use crate::kernel::mem::{kalloc_page, kfree_page};
-use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock};
+use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_dead};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
@@ -127,6 +127,9 @@ impl Process {
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(root_proc());
+                if is_dead(child) {
+                    root_proc().child_exit.post();
+                }
             }
             root_proc().attach_children(first_child);
         }
@@ -174,12 +177,7 @@ pub fn exit(code: usize) -> ! {
     let proc = thisproc();
     proc.exit_code = code;
 
-    // Clean up stack and context.
-    if proc.killable() {
-        kfree_page(unsafe { proc.kernel_stack.byte_sub(PAGE_SIZE) });
-        proc.kernel_context = ptr::null_mut();
-        proc.user_context = ptr::null_mut();
-    }
+    // Set the kill flag.
     proc.killed = true;
 
     // Transfer all children to the root process.
@@ -193,7 +191,6 @@ pub fn exit(code: usize) -> ! {
 
     // This process is a zombie, and will be cleaned up by the parent's wait().
     let lock = acquire_sched_lock();
-
     sched(lock, ProcessState::Zombie);
 
     panic!("Zombie process should not be scheduled");
@@ -211,9 +208,15 @@ pub fn wait() -> Option<(usize, usize)> {
     let child = proc.first_child.unwrap();
     let child = unsafe { &mut *child };
     for x in child.link().iter::<Process>(false) {
-        if matches!(x.state, ProcessState::Zombie) {
+        if is_dead(x) {
             let exit_code = x.exit_code;
             let pid = x.pid;
+            // Free stack and context.
+            if x.killable() {
+                kfree_page(unsafe { x.kernel_stack.byte_sub(PAGE_SIZE) });
+                x.kernel_context = ptr::null_mut();
+                x.user_context = ptr::null_mut();
+            }
             proc.detach_child(x);
             // Scheduler has removed it and parent has detached it, so we can free it.
             let _proc_to_be_dropped = unsafe { Box::from_raw(x) };
@@ -232,12 +235,10 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.fill_default_fields();
     let stack_top = kalloc_page();
     proc.kernel_stack = stack_top.byte_add(PAGE_SIZE);
-    proc.user_context = proc
-        .kernel_stack
+    proc.user_context = proc.kernel_stack
         .byte_sub(core::mem::size_of::<UserContext>()) as *mut UserContext;
-    proc.kernel_context =
-        proc.user_context
-            .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
+    proc.kernel_context = proc.user_context
+        .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.
     if let Some(parent) = try_thisproc() {
