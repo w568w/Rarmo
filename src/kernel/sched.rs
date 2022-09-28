@@ -9,6 +9,15 @@ pub struct Sched {
     pub idle_proc: Option<*mut Process>,
 }
 
+impl Sched {
+    pub const fn uninit() -> Self {
+        Sched {
+            cur_proc: None,
+            idle_proc: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SchInfo {}
 
@@ -29,9 +38,13 @@ fn get_cpu_sched() -> &'static mut Sched {
     &mut get_cpu_info().sched
 }
 
+pub fn try_thisproc() -> Option<&'static mut Process> {
+    let proc = get_cpu_sched().cur_proc;
+    proc.map(|proc| unsafe { &mut *proc })
+}
+
 pub fn thisproc() -> &'static mut Process {
-    let proc = get_cpu_sched().cur_proc.unwrap();
-    unsafe { &mut *proc }
+    try_thisproc().unwrap()
 }
 
 pub fn activate(proc: &mut Process) {
@@ -70,6 +83,7 @@ fn update_this_proc(proc: *mut Process) {
 pub fn start_idle_proc() {
     let lock = acquire_sched_lock();
     let idle_proc = get_cpu_sched().idle_proc.unwrap();
+    unsafe { (*idle_proc).state = ProcessState::Running };
     update_this_proc(idle_proc);
     release_sched_lock(lock);
 }
@@ -111,11 +125,4 @@ pub extern "C" fn proc_entry(real_entry: *const fn(usize), arg: usize) -> ! {
     }
     exit(0);
 }
-impl Sched {
-    pub const fn uninit() -> Self {
-        Sched {
-            cur_proc: None,
-            idle_proc: None,
-        }
-    }
-}
+
