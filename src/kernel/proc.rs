@@ -142,7 +142,7 @@ impl Process {
     pub fn detach_child(&mut self, child: &mut Process) {
         child.parent = None;
         if let Some(first_child) = self.first_child {
-            let mut first_child = unsafe { &mut *first_child };
+            let first_child = unsafe { &mut *first_child };
             if first_child.link().is_single() {
                 // If the first child is the only child, we can just set the first child to `None`.
                 self.first_child = None;
@@ -242,9 +242,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.fill_default_fields();
     let stack_top = kalloc_page();
     proc.kernel_stack = stack_top.byte_add(PAGE_SIZE);
-    proc.user_context = proc.kernel_stack
-        .byte_sub(core::mem::size_of::<UserContext>()) as *mut UserContext;
-    proc.kernel_context = proc.user_context
+    proc.kernel_context = proc.kernel_stack
         .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.
