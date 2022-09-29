@@ -38,16 +38,16 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("SVC64 exception");
         }
         ESR_EC_IABORT_EL0 => {
-            panic!("IABORT_EL0 exception");
+            panic!("IABORT_EL0 exception, at {:x}", unsafe { (*context).elr_el1 });
         }
         ESR_EC_IABORT_EL1 => {
-            panic!("IABORT_EL1 exception");
+            panic!("IABORT_EL1 exception, at {:x}", unsafe { (*context).elr_el1 });
         }
         ESR_EC_DABORT_EL0 => {
-            panic!("DABORT_EL0 exception");
+            panic!("DABORT_EL0 exception, at {:x}", unsafe { (*context).elr_el1 });
         }
         ESR_EC_DABORT_EL1 => {
-            panic!("DABORT_EL1 exception");
+            panic!("DABORT_EL1 exception, at {:x}", unsafe { (*context).elr_el1 });
         }
         _ => {
             panic!("Unknown exception");
