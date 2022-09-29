@@ -1,5 +1,5 @@
 use crate::aarch64::mmu::PAGE_SIZE;
-use crate::common::round_up;
+use crate::common::{round_down, round_up};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;
 use core::ptr;
@@ -404,7 +404,7 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
 
 // Get the page that contains the block.
 fn slob_page(block: *mut SlobUnit) -> *mut SlobPage {
-    let page = block as usize & !(PAGE_SIZE - 1);
+    let page = round_down(block as usize, PAGE_SIZE);
     page as *mut SlobPage
 }
 
