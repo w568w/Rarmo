@@ -181,10 +181,10 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     release_sched_lock(sched_lock);
 }
 
-pub extern "C" fn proc_entry(real_entry: *const fn(usize), arg: usize) -> ! {
+pub extern "C" fn proc_entry(real_entry: extern "C" fn(usize), arg: usize) -> ! {
     unsafe {
         force_release_sched_lock();
-        (*real_entry)(arg);
+        real_entry(arg);
     }
     exit(0);
 }
