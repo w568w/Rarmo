@@ -8,7 +8,7 @@ use crate::kernel::sched::{acquire_sched_lock, activate, sched, thisproc};
 
 pub struct Semaphore {
     lock: Mutex<()>,
-    value: isize,
+    pub value: isize,
     sleep_list: ListLink,
 }
 
@@ -74,13 +74,14 @@ impl Semaphore {
         wait_data.up
     }
 
-    pub fn try_get_all(&mut self) -> bool {
+    pub fn try_get_all(&mut self) -> isize {
         let _lock = self.lock.lock();
+        let val = self.value;
         if self.value > 0 {
             self.value = 0;
-            true
+            val
         } else {
-            false
+            0
         }
     }
     pub fn post(&mut self) {

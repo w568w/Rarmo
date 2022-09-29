@@ -252,12 +252,12 @@ pub unsafe fn init_proc(p: &mut Process) {
     }
 }
 
-pub fn create_proc() -> *mut Process {
+pub fn create_proc() -> &'static mut Process {
     let mut p: Box<Process> = Default::default();
     unsafe {
         init_proc(p.as_mut());
     }
-    Box::leak(p)
+    unsafe { &mut *Box::into_raw(p) }
 }
 
 // Start a process.
