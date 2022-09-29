@@ -1,7 +1,6 @@
 use alloc::boxed::Box;
 use field_offset::offset_of;
 use crate::common::list::{InplaceFilter, ListLink, ListNode};
-use core::fmt::Write;
 use crate::println;
 
 #[repr(C)]
@@ -14,7 +13,7 @@ impl Data {
     fn new(val: u64) -> Self {
         let mut data = Self {
             val,
-            link: ListLink::new(),
+            link: ListLink::uninit(),
         };
         data.link.init();
         data
@@ -28,7 +27,7 @@ impl ListNode for Data {
 }
 
 pub fn test_list() {
-    let mut list_head = ListLink::new();
+    let mut list_head = ListLink::uninit();
     list_head.init();
     let mut data1 = Box::new(Data::new(1));
     let mut data2 = Box::new(Data::new(2));

@@ -66,9 +66,6 @@ pub fn main() -> ! {
         while !KERNEL_INITED.load(core::sync::atomic::Ordering::Acquire) {}
         dsb_sy();
     }
-    if get_cpu_id() == 0 {
-        test_list();
-    }
     idle_entry();
 }
 
