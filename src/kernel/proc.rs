@@ -1,4 +1,5 @@
 use crate::aarch64::mmu::PAGE_SIZE;
+use crate::common::Container;
 use crate::common::list::{ListLink, ListNode};
 use crate::common::sem::Semaphore;
 use crate::define_init;
@@ -165,6 +166,10 @@ impl Process {
 
 impl ListNode for Process {
     fn get_link_offset() -> usize { offset_of!(Process => ptnode).get_byte_offset() }
+}
+
+impl Container<SchInfo> for Process {
+    fn get_child_offset() -> usize { offset_of!(Process => sch_info).get_byte_offset() }
 }
 
 impl Default for Box<Process> {
