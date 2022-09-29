@@ -38,7 +38,7 @@ pub fn test_list() {
     for item in list_head.iter::<Data>(true) {
         println!("{}", item.val);
     }
-    list_head.iter::<Data>(true).filter_inplace(|item| {
+    list_head.iter::<Data>(true).filter_inplace(|_| {
         false
     }, None);
     for item in list_head.iter::<Data>(true) {

@@ -102,7 +102,7 @@ impl Process {
     pub fn attach_child(&mut self, child: &mut Process) {
         child.parent = Some(self);
         if let Some(first_child) = self.first_child {
-            let mut first_child = unsafe { &mut *first_child };
+            let first_child = unsafe { &mut *first_child };
             first_child.ptnode.insert_at_first(child);
         } else {
             self.first_child = Some(child);
@@ -126,7 +126,7 @@ impl Process {
             return;
         }
         if let Some(first_child) = self.first_child {
-            let mut first_child = unsafe { &mut *first_child };
+            let first_child = unsafe { &mut *first_child };
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(root_proc());

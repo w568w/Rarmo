@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use core::ptr;
 use crate::aarch64::intrinsic::addr::{LOCAL_BASE, MMIO_BASE};
 use crate::aarch64::intrinsic::{get_u32, put_u32};

@@ -4,7 +4,7 @@ use crate::kernel::proc::{create_proc, exit, start_proc, wait};
 use crate::kernel::sched::yield_;
 use crate::println;
 
-static mut Semaphores: [MaybeUninit<Semaphore>; 6] = MaybeUninit::uninit_array();
+static mut SEMAPHORES: [MaybeUninit<Semaphore>; 6] = MaybeUninit::uninit_array();
 
 unsafe fn proc_test_1b(a: usize) {
     match a / 10 - 1 {
@@ -14,22 +14,22 @@ unsafe fn proc_test_1b(a: usize) {
             yield_();
         }
         2 => {
-            Semaphores[0].assume_init_mut().post();
+            SEMAPHORES[0].assume_init_mut().post();
         }
         3..=7 => {
             if a & 1 != 0 {
-                Semaphores[1].assume_init_mut().post();
+                SEMAPHORES[1].assume_init_mut().post();
             } else {
-                Semaphores[1].assume_init_mut().get_or_wait();
+                SEMAPHORES[1].assume_init_mut().get_or_wait();
             }
         }
         8 => {
-            Semaphores[2].assume_init_mut().get_or_wait();
-            Semaphores[3].assume_init_mut().post();
+            SEMAPHORES[2].assume_init_mut().get_or_wait();
+            SEMAPHORES[3].assume_init_mut().post();
         }
         9 => {
-            Semaphores[4].assume_init_mut().post();
-            Semaphores[5].assume_init_mut().get_or_wait();
+            SEMAPHORES[4].assume_init_mut().post();
+            SEMAPHORES[5].assume_init_mut().get_or_wait();
         }
         _ => {}
     }
@@ -53,9 +53,9 @@ unsafe fn proc_test_1a(a: usize) {
         }
         2 => {
             for _ in 0..10 {
-                assert!(Semaphores[0].assume_init_mut().get_or_wait());
+                assert!(SEMAPHORES[0].assume_init_mut().get_or_wait());
             }
-            assert!(!Semaphores[0].assume_init_mut().try_get());
+            assert!(!SEMAPHORES[0].assume_init_mut().try_get());
         }
         3..=7 => {
             for _ in 0..10 {
@@ -65,28 +65,28 @@ unsafe fn proc_test_1a(a: usize) {
         }
         8 => {
             for _ in 0..10 {
-                Semaphores[2].assume_init_mut().post();
+                SEMAPHORES[2].assume_init_mut().post();
             }
             for _ in 0..10 {
                 let _ = wait();
             }
             assert!(matches!(wait(),None));
-            assert_eq!(Semaphores[2].assume_init_mut().value, 0);
-            assert_eq!(Semaphores[3].assume_init_mut().try_get_all(), 10);
+            assert_eq!(SEMAPHORES[2].assume_init_mut().value, 0);
+            assert_eq!(SEMAPHORES[3].assume_init_mut().try_get_all(), 10);
         }
         9 => {
             for _ in 0..10 {
-                Semaphores[4].assume_init_mut().get_or_wait();
+                SEMAPHORES[4].assume_init_mut().get_or_wait();
             }
             for _ in 0..10 {
-                Semaphores[5].assume_init_mut().post();
+                SEMAPHORES[5].assume_init_mut().post();
             }
             for _ in 0..10 {
                 let _ = wait();
             }
             assert!(matches!(wait(),None));
-            assert_eq!(Semaphores[4].assume_init_mut().value, 0);
-            assert_eq!(Semaphores[5].assume_init_mut().value, 0);
+            assert_eq!(SEMAPHORES[4].assume_init_mut().value, 0);
+            assert_eq!(SEMAPHORES[5].assume_init_mut().value, 0);
         }
         _ => {}
     }
@@ -96,15 +96,15 @@ unsafe fn proc_test_1a(a: usize) {
 unsafe fn proc_test_1(_: usize) {
     println!("proc_test_1");
     for i in 0..6 {
-        Semaphores[i] = MaybeUninit::new(Semaphore::uninit(0));
-        Semaphores[i].assume_init_mut().init();
+        SEMAPHORES[i] = MaybeUninit::new(Semaphore::uninit(0));
+        SEMAPHORES[i].assume_init_mut().init();
     }
     let mut pid: [usize; 10] = [0; 10];
     for i in 0..10 {
         let p = create_proc();
         pid[i] = start_proc(p, proc_test_1a as *const fn(usize), i);
     }
-    for i in 0..10 {
+    for _ in 0..10 {
         let (id, ret) = wait().unwrap();
         assert_eq!(id, pid[ret]);
         println!("proc_test_1: proc {} exit", ret);

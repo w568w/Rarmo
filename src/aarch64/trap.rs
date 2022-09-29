@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;

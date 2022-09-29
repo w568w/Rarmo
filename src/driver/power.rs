@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::aarch64::intrinsic::addr::{GPFSEL0, GPFSEL1, GPPUD, GPPUDCLK0, GPPUDCLK1, MMIO_BASE};
 use crate::aarch64::intrinsic::mbox::{call, MBOX, MBOX_CH_PROP, MBOX_REQUEST, MBOX_TAG_LAST, MBOX_TAG_SETPOWER};
 use crate::aarch64::intrinsic::{delay_us, get_u32, put_u32};
