@@ -73,7 +73,7 @@
                                 (MT_NORMAL_NC_FLAGS << (8 * MT_NORMAL_NC)))
 
 /* kernel stack size per CPU. Kernel stack sizes are fixed. */
-#define KERNEL_STACK_SIZE 4096
+#define KERNEL_STACK_SIZE 65536
 
 .section ".text.entry"
 
@@ -187,6 +187,6 @@ el1:
 .section ".bss.stack"
 .globl boot_stack
 boot_stack:
-.space KERNEL_STACK_SIZE * 16
+.space KERNEL_STACK_SIZE * 4
 .globl boot_stack_top
 boot_stack_top:

@@ -2,7 +2,7 @@
 #![allow(unused)]
 #![allow(non_upper_case_globals)]
 
-pub const PAGE_SIZE: usize = 4096;
+pub const PAGE_SIZE: usize = 65536;
 
 #[derive(Clone, Copy)]
 #[repr(align(4096))]

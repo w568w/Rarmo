@@ -12,7 +12,7 @@ pub mod cpu;
 pub mod sched;
 
 pub static PANIC_FLAG: AtomicBool = AtomicBool::new(false);
-pub const KERNEL_STACK_SIZE: usize = 4096;
+pub const KERNEL_STACK_SIZE: usize = 65536;
 
 #[macro_export]
 macro_rules! define_early_init {
