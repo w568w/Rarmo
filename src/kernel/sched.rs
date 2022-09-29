@@ -1,5 +1,9 @@
-use crate::kernel::proc::{exit, KernelContext, Process, ProcessState};
+use crate::{common::{
+    list::{ListLink, ListNode},
+    Container,
+}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}};
 use core::arch::global_asm;
+use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
 
 use super::cpu::get_cpu_info;
@@ -8,6 +12,15 @@ pub struct Sched {
     pub cur_proc: Option<*mut Process>,
     pub idle_proc: Option<*mut Process>,
 }
+
+static mut RUN_QUEUE: ListLink = ListLink::uninit();
+
+pub extern "C" fn init_run_queue() {
+    unsafe {
+        RUN_QUEUE.init();
+    }
+}
+define_early_init!(init_run_queue);
 
 impl Sched {
     // Note: this function will not initialize the run queue. DO IT MANUALLY.
@@ -81,12 +94,11 @@ pub fn activate(proc: &mut Process) {
     let lock = acquire_sched_lock();
     match proc.state {
         ProcessState::Unused | ProcessState::Sleeping => {
-            proc.state = ProcessState::Runnable;
-            // todo add it to the sched queue
+            update_proc_state(proc, ProcessState::Runnable);
         }
         ProcessState::Runnable | ProcessState::Running => {}
         ProcessState::Zombie => {
-            panic!("attempt to activate zombie process");
+            panic!("activate zombie process");
         }
     }
     release_sched_lock(lock);
@@ -120,15 +132,36 @@ pub fn start_idle_proc() {
 
 // Choose the next process to run.
 fn pick_next() -> &'static mut Process {
-    // todo
-    let mut proc = get_cpu_sched().idle_proc.unwrap();
-    unsafe { &mut *proc }
+    let sch_info = unsafe { RUN_QUEUE.prev::<SchInfo>() };
+    if let Some(sch_info) = sch_info {
+        let proc = Process::get_parent::<Process>(sch_info);
+        proc
+    } else {
+        let idle_proc = get_cpu_sched().idle_proc.unwrap();
+        unsafe { &mut *idle_proc }
+    }
+}
+
+fn update_proc_state(proc: &mut Process, state: ProcessState) {
+    proc.state = state;
+    if proc.idle {
+        return;
+    }
+    match proc.state {
+        ProcessState::Unused => panic!("Try to set a process to unused state"),
+        ProcessState::Runnable => {
+            unsafe {
+                RUN_QUEUE.insert_at_first(&mut proc.sch_info);
+            }
+        }
+        ProcessState::Running | ProcessState::Sleeping | ProcessState::Zombie => {
+            proc.sch_info.link().detach();
+        }
+    }
 }
 
 fn update_this_state(state: ProcessState) {
-    thisproc().state = state;
-    // todo if state == ProcessState::Runnable, add thisproc() to the sched queue
-    // todo if state == ProcessState::Zombie, remove thisproc() from the sched queue
+    update_proc_state(thisproc(), state)
 }
 
 pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
@@ -138,7 +171,7 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     let next = pick_next();
     update_this_proc(next);
     assert!(matches!(next.state, ProcessState::Runnable));
-    next.state = ProcessState::Running;
+    update_proc_state(next, ProcessState::Running);
     if next.pid != this.pid {
         unsafe {
             swtch(next.kernel_context, &mut this.kernel_context);
@@ -155,4 +188,3 @@ pub extern "C" fn proc_entry(real_entry: *const fn(usize), arg: usize) -> ! {
     }
     exit(0);
 }
-
