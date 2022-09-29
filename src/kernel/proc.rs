@@ -81,12 +81,14 @@ impl Process {
         self.idle = false;
         self.exit_code = 0;
         self.state = ProcessState::Unused;
-        self.child_exit = Semaphore::new(0);
+        self.child_exit = Semaphore::uninit(0);
+        self.child_exit.init();
         self.first_child = None;
-        self.ptnode = ListLink::new();
+        self.ptnode = ListLink::uninit();
         self.ptnode.init();
         self.parent = None;
-        self.sch_info = SchInfo {};
+        self.sch_info = SchInfo::uninit();
+        self.sch_info.init();
         self.kernel_stack = ptr::null_mut();
         self.user_context = ptr::null_mut();
         self.kernel_context = ptr::null_mut();

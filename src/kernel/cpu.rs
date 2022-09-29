@@ -30,6 +30,14 @@ static mut CPUS: [CPU; CPU_NUM] = {
     unsafe { core::mem::transmute(cpus) }
 };
 
+pub unsafe extern "C" fn init_sched() {
+    for info in CPUS.iter_mut() {
+        info.sched.init();
+    }
+}
+
+define_early_init!(init_sched);
+
 fn cpu_clock_handler() {
     yield_();
     reset_clock(1000);
@@ -45,7 +53,7 @@ extern "C" {
     pub fn exception_vector();
 }
 
-// Get current CPU's CPUInfo.
+// Get current CPU's Info.
 // It is safe because it only returns a reference to the *current* CPU's, not others'.
 pub fn get_cpu_info() -> &'static mut CPU {
     unsafe { &mut CPUS[get_cpu_id()] }

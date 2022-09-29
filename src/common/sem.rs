@@ -26,14 +26,15 @@ impl ListNode for WaitData {
 }
 
 impl Semaphore {
-    pub fn new(value: isize) -> Self {
-        let mut sem = Self {
+    pub fn uninit(value: isize) -> Self {
+        Self {
             lock: Mutex::new(()),
             value,
-            sleep_list: ListLink::new(),
-        };
-        sem.sleep_list.init();
-        sem
+            sleep_list: ListLink::uninit(),
+        }
+    }
+    pub fn init(&mut self) {
+        self.sleep_list.init();
     }
     pub fn try_get(&mut self) -> bool {
         let _lock = self.lock.lock();
@@ -53,7 +54,8 @@ impl Semaphore {
             return true;
         }
         // Create a WaitData, representing that the current process is in the wait list.
-        let mut wait_data = Box::new(WaitData::new());
+        let mut wait_data = Box::new(WaitData::uninit());
+        wait_data.slnode.init();
         self.sleep_list.insert_at_first(wait_data.as_mut());
         // Lock for the scheduler, and tell it that the process is going to sleep.
         let sched_lock = acquire_sched_lock();
@@ -96,13 +98,11 @@ impl Semaphore {
 }
 
 impl WaitData {
-    pub fn new() -> Self {
-        let mut data = Self {
-            slnode: ListLink::new(),
+    pub fn uninit() -> Self {
+        Self {
+            slnode: ListLink::uninit(),
             up: false,
             proc: thisproc(),
-        };
-        data.slnode.init();
-        data
+        }
     }
 }

@@ -7,18 +7,18 @@ pub struct ListLink {
 }
 
 pub trait ListNode {
-    fn get_link(&mut self) -> *mut ListLink {
+    fn link_ptr(&mut self) -> *mut ListLink {
         let ptr = self as *mut Self as *mut ListLink;
         unsafe { ptr.byte_add(Self::get_link_offset()) }
     }
     fn link(&mut self) -> &mut ListLink {
-        unsafe { &mut *self.get_link() }
+        unsafe { &mut *self.link_ptr() }
     }
     fn get_link_offset() -> usize;
 }
 
 impl ListLink {
-    pub fn new() -> Self {
+    pub const fn uninit() -> Self {
         Self {
             prev: ptr::null_mut(),
             next: ptr::null_mut(),
@@ -29,7 +29,7 @@ impl ListLink {
         self.prev = self;
     }
     pub fn insert_at_first<T: ListNode>(&mut self, node: *mut T) {
-        let node_link = unsafe { (*node).get_link() };
+        let node_link = unsafe { (*node).link_ptr() };
         unsafe {
             (*node_link).prev = self;
             (*node_link).next = self.next;

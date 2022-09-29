@@ -10,16 +10,38 @@ pub struct Sched {
 }
 
 impl Sched {
+    // Note: this function will not initialize the run queue. DO IT MANUALLY.
     pub const fn uninit() -> Self {
-        Sched {
+        Self {
             cur_proc: None,
             idle_proc: None,
         }
     }
+
+    pub fn init(&mut self) {}
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SchInfo {}
+#[repr(C)]
+pub struct SchInfo {
+    pub ptnode: ListLink,
+}
+
+impl SchInfo {
+    pub fn uninit() -> Self {
+        Self {
+            ptnode: ListLink::uninit(),
+        }
+    }
+    pub fn init(&mut self) {
+        self.ptnode.init();
+    }
+}
+
+impl ListNode for SchInfo {
+    fn get_link_offset() -> usize {
+        offset_of!(SchInfo => ptnode).get_byte_offset()
+    }
+}
 
 static SCHED_LOCK: Mutex<()> = Mutex::new(());
 
