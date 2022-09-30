@@ -10,7 +10,9 @@ pub static CONSOLE: RwLock<Option<ConsoleContext<UartDevice>>> = RwLock::new(Non
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    CONSOLE.write().as_mut().unwrap().write_fmt(args).expect("print to console failed");
+    if let Some(console) = CONSOLE.write().as_mut() {
+        console.write_fmt(args).unwrap();
+    }
 }
 
 pub unsafe extern "C" fn init_console() {

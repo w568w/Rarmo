@@ -14,14 +14,14 @@ pub struct Semaphore {
 
 #[repr(C)]
 pub struct WaitData {
-    slnode: ListLink,
+    sibling: ListLink,
     up: bool,
     proc: *mut Process,
 }
 
 impl ListNode for WaitData {
     fn get_link_offset() -> usize {
-        offset_of!(WaitData => slnode).get_byte_offset()
+        offset_of!(WaitData => sibling).get_byte_offset()
     }
 }
 
@@ -55,7 +55,7 @@ impl Semaphore {
         }
         // Create a WaitData, representing that the current process is in the wait list.
         let mut wait_data = Box::new(WaitData::uninit());
-        wait_data.slnode.init();
+        wait_data.sibling.init();
         self.sleep_list.insert_at_first(wait_data.as_mut());
         // Lock for the scheduler, and tell it that the process is going to sleep.
         let sched_lock = acquire_sched_lock();
@@ -101,7 +101,7 @@ impl Semaphore {
 impl WaitData {
     pub fn uninit() -> Self {
         Self {
-            slnode: ListLink::uninit(),
+            sibling: ListLink::uninit(),
             up: false,
             proc: thisproc(),
         }
