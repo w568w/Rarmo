@@ -12,7 +12,7 @@ trait VirtualMemoryPageTable<T> where T: PhysicalMemoryTable {
 impl<T> VirtualMemoryPageTable<T> for *mut PageTable
     where T: PhysicalMemoryTable {
     fn new(p_alloc: &mut PhysicalMemory<T>) -> Self {
-        let page_table = p_alloc.page_alloc() as *mut PageTable;
+        let page_table = p_alloc.page_alloc(1) as *mut PageTable;
         // Clear the page table with zeros.
         unsafe {
             core::ptr::write_bytes(page_table, 0, 1);

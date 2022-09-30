@@ -38,7 +38,7 @@ pub unsafe fn alloc_test() {
     }
     sync(1);
     for j in 0..y {
-        p[i][j] = crate::kernel::mem::kalloc_page();
+        p[i][j] = crate::kernel::mem::kalloc_page(1);
         if p[i][j].is_null() || p[i][j] as usize & 1023 != 0 {
             panic!("kalloc_page failed");
         }
@@ -51,7 +51,7 @@ pub unsafe fn alloc_test() {
                 panic!("page is wrong");
             }
         }
-        crate::kernel::mem::kfree_page(p[i][j]);
+        crate::kernel::mem::kfree_page(p[i][j], 1);
     }
     sync(2);
     if ALLOC_PAGE_CNT.load(core::sync::atomic::Ordering::Relaxed) != r {

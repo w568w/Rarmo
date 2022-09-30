@@ -1,4 +1,5 @@
 use crate::aarch64::mmu::PAGE_SIZE;
+use crate::common::list::ListLink;
 use crate::common::{round_down, round_up};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;
@@ -83,7 +84,9 @@ impl SlobPageList {
     }
 }
 
+#[repr(C)]
 pub struct SlobPage {
+    pub buddy_link: ListLink,
     // How many free units are left on the page?
     pub free_units: SlobUnit,
     // Point to the first free block on the page.
@@ -215,7 +218,7 @@ unsafe fn slob_alloc(size: usize, align: usize) -> Option<*mut u8> {
 
 // Allocate a new page, but do not add it to the free list.
 unsafe fn slob_new_pages() -> *mut SlobPage {
-    let b = kalloc_page();
+    let b = kalloc_page(1);
     let page = b as *mut SlobPage;
     (*page).free_units = contain_units(PAGE_FREE_SIZE);
     (*page).max_free = Some((*page).free_units);
@@ -336,7 +339,7 @@ unsafe fn slob_free(block: *mut SlobUnit, size: SlobUnit) -> SlobUnit {
     // free the page by page allocator.
     if (*page).free_units + size >= contain_units(PAGE_FREE_SIZE) {
         SlobPage::detach_self(page);
-        kfree_page(page as *mut u8);
+        kfree_page(page as *mut u8,1);
         return original_size;
     }
     if (*page).free_units == 0 {

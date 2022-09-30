@@ -3,7 +3,7 @@ use crate::common::Container;
 use crate::common::list::{ListLink, ListNode};
 use crate::common::sem::Semaphore;
 use crate::define_init;
-use crate::kernel::{get_kernel_stack_bottom, kernel_entry};
+use crate::kernel::{get_kernel_stack_bottom, kernel_entry, KERNEL_STACK_SIZE};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_dead};
 use alloc::boxed::Box;
@@ -220,7 +220,7 @@ pub fn wait() -> Option<(usize, usize)> {
             let pid = x.pid;
             // Free stack and context.
             if x.killable() {
-                kfree_page(unsafe { x.kernel_stack.byte_sub(PAGE_SIZE) });
+                kfree_page(unsafe { x.kernel_stack.byte_sub(PAGE_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
                 x.kernel_context = ptr::null_mut();
                 x.user_context = ptr::null_mut();
             }
@@ -240,7 +240,7 @@ pub fn wait() -> Option<(usize, usize)> {
 pub unsafe fn init_proc(p: &mut Process) {
     let mut proc = &mut *p;
     proc.fill_default_fields();
-    let stack_top = kalloc_page();
+    let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
     proc.kernel_stack = stack_top.byte_add(PAGE_SIZE);
     proc.kernel_context = proc.kernel_stack
         .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
