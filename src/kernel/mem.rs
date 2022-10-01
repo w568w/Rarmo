@@ -1,7 +1,6 @@
 use core::sync::atomic::AtomicUsize;
 use spin::RwLock;
-use crate::aarch64::mmu::{_kernel2physical_mut, _physical2kernel_mut, kernel2physical, PAGE_SIZE, PHYSICAL_TOP};
-use crate::common::round_up;
+use crate::aarch64::mmu::{_kernel2physical_mut, _physical2kernel_mut, kernel2physical, PHYSICAL_TOP};
 use crate::cores::physical_memory::{BuddyPageAllocation, PhysicalMemory, PhysicalMemoryTable};
 use crate::cores::slob;
 use crate::cores::slob::KMemCache;

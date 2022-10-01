@@ -12,7 +12,7 @@ pub fn do_early_init() {
         unsafe {
             (*start)();
         }
-        start = unsafe { start.offset(1) };
+        start = unsafe { start.add(1) };
     }
 }
 
@@ -23,6 +23,6 @@ pub fn do_init() {
         unsafe {
             (*start)();
         }
-        start = unsafe { start.offset(1) };
+        start = unsafe { start.add(1) };
     }
 }

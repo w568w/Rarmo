@@ -8,10 +8,6 @@ use crate::{aarch64::mmu::PAGE_SIZE, common::{
 }};
 use crate::aarch64::mmu::{_kernel2physical_mut, _physical2kernel_mut};
 
-// We will be started from up to 1024 MB memory management.
-const SMALL_MEMORY_SIZE_IN_MB: usize = 1024;
-const SMALL_PAGE_NUM: usize = (SMALL_MEMORY_SIZE_IN_MB * 1024 * 1024 / PAGE_SIZE) as usize;
-
 pub struct PhysicalMemory<T>
     where
         T: PhysicalMemoryTable,
@@ -104,10 +100,10 @@ impl BuddyPageAllocation {
         self.start = unsafe { real_start.byte_add(page_num * bit_unit_size) };
         self.end = end;
         self.page_num = page_num;
-        self.init_free_list(self.start, self.end, page_num);
+        self.init_free_list(self.start, page_num);
     }
 
-    fn init_free_list(&mut self, start: *mut u8, end: *mut u8, page_num: usize) {
+    fn init_free_list(&mut self, start: *mut u8, page_num: usize) {
         for i in 0..GF_ORDER {
             self.free_list[i].init();
         }

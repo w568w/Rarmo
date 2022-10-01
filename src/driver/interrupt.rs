@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use core::ptr;
+
+use spin::RwLock;
 use crate::aarch64::intrinsic::addr::{LOCAL_BASE, MMIO_BASE};
 use crate::aarch64::intrinsic::{get_u32, put_u32};
 use crate::{define_early_init, get_cpu_id};
@@ -36,18 +37,17 @@ const fn irq_src_core(i: usize) -> u64 {
     LOCAL_BASE + 0x60 + 4 * (i as u64)
 }
 
-static mut IRQ_HANDLERS: [*const fn(); NUM_IRQ_TYPES] = [ptr::null(); NUM_IRQ_TYPES];
+static IRQ_HANDLERS: RwLock<[Option<fn()>; NUM_IRQ_TYPES]> = RwLock::new([None; NUM_IRQ_TYPES]);
 
 pub fn init_interrupt() {
     put_u32(GPU_INT_ROUTE, 0);
 }
 define_early_init!(init_interrupt);
 
-pub fn set_interrupt_handler(typ: InterruptType, handler: *const fn()) {
+pub fn set_interrupt_handler(typ: InterruptType, handler: fn()) {
     put_u32(ENABLE_IRQS_1 + ((typ as u64) / 32) * 4, 1 << ((typ as usize) % 32));
-    unsafe {
-        IRQ_HANDLERS[typ as usize] = handler;
-    }
+    let mut lock = IRQ_HANDLERS.write();
+    lock[typ as usize] = Some(handler);
 }
 
 pub fn interrupt_global_handler() {
@@ -59,11 +59,12 @@ pub fn interrupt_global_handler() {
     if source & IRQ_SRC_GPU != 0 {
         source ^= IRQ_SRC_GPU;
         let map: u64 = (get_u32(IRQ_PENDING_1) as u64) | ((get_u32(IRQ_PENDING_2) as u64) << 32);
+        let lock = IRQ_HANDLERS.read();
         for i in 0..NUM_IRQ_TYPES {
             if (map >> i) & 1 != 0 {
                 unsafe {
-                    if IRQ_HANDLERS[i] != ptr::null() {
-                        (*(IRQ_HANDLERS[i]))();
+                    if let Some(handler) = lock[i] {
+                        handler();
                     } else {
                         panic!("Unknown interrupt {}", i);
                     }
