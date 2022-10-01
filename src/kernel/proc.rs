@@ -10,7 +10,7 @@ use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
 use field_offset::offset_of;
-use spin::Mutex;
+use crate::common::lock::CPUReentrantMutex;
 use crate::common::pool::LockedArrayPool;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
@@ -27,14 +27,14 @@ pub enum ProcessState {
     Zombie,
 }
 
-static PROC_LOCK: Mutex<()> = Mutex::new(());
+static PROC_LOCK: CPUReentrantMutex<()> = CPUReentrantMutex::new(());
 
 const PID_POOL_SIZE: usize = 1000;
 static PID_POOL: LockedArrayPool<usize, PID_POOL_SIZE> = LockedArrayPool::new();
 
 const fn pid_generator(fill_count: usize, i: usize) -> usize {
     // The PID will start from 1, so that 0 can be used as idle process's PID.
-    PID_POOL_SIZE * fill_count + i + 1
+    PID_POOL_SIZE * (fill_count + 1) - i
 }
 
 #[repr(C)]
@@ -100,6 +100,7 @@ impl Process {
     // Attach a new child to the process.
     // It will also set the child's parent to this process.
     pub fn attach_child(&mut self, child: &mut Process) {
+        let _lock = PROC_LOCK.lock();
         child.parent = Some(self);
         if let Some(first_child) = self.first_child {
             let first_child = unsafe { &mut *first_child };
@@ -125,6 +126,7 @@ impl Process {
         if self.pid == root_proc().pid {
             return;
         }
+        let _lock = PROC_LOCK.lock();
         if let Some(first_child) = self.first_child {
             let first_child = unsafe { &mut *first_child };
             // Merge the child list to the root process's child list.
@@ -186,11 +188,8 @@ pub fn exit(code: usize) -> ! {
 
     // Set the kill flag.
     proc.killed = true;
-
     // Transfer all children to the root process.
-    let p_lock = PROC_LOCK.lock();
     proc.transfer_all_children_to_root();
-    drop(p_lock);
     // Notify the parent that it is exiting.
     if let Some(parent) = proc.parent {
         unsafe { (*parent).child_exit.post() };
@@ -247,7 +246,6 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.
     if let Some(parent) = try_thisproc() {
-        let _lock = PROC_LOCK.lock();
         parent.attach_child(proc);
     }
 }
@@ -281,7 +279,7 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
     let kcontext = unsafe { &mut *(p.kernel_context) };
     kcontext.x0[0] = entry as u64;
     kcontext.x0[1] = arg as u64;
-    kcontext.x19[11] = proc_entry as *const extern "C" fn(*const fn(usize), usize) as u64;
+    kcontext.x19[11] = proc_entry as *const fn(*const fn(usize), usize) as u64;
 
     let pid = p.pid;
     activate(p);

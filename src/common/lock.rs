@@ -9,6 +9,8 @@ pub struct CPUReentrantMutex<T> {
     count: AtomicUsize,
 }
 
+unsafe impl<T> Sync for CPUReentrantMutex<T> {}
+
 impl<T> CPUReentrantMutex<T> {
     pub const fn new(data: T) -> Self {
         Self {
@@ -51,7 +53,7 @@ pub struct CPUReentrantMutexGuard<'a, T: 'a> {
     data: &'a mut T,
 }
 
-impl<'a, T:  'a> Drop for CPUReentrantMutexGuard<'a, T> {
+impl<'a, T: 'a> Drop for CPUReentrantMutexGuard<'a, T> {
     fn drop(&mut self) {
         if self.lock.load(Ordering::SeqCst) > 0 {
             self.lock.fetch_sub(1, Ordering::Release);
