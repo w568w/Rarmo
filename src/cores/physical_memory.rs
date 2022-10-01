@@ -45,7 +45,7 @@ pub struct BuddyPage {
     pub link: ListLink,
 }
 
-impl ListNode for BuddyPage {
+impl ListNode<ListLink> for BuddyPage {
     fn get_link_offset() -> usize {
         offset_of!(BuddyPage => link).get_byte_offset()
     }

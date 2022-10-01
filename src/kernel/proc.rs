@@ -19,6 +19,7 @@ pub fn root_proc() -> &'static mut Process {
     unsafe { ROOT_PROC.assume_init_mut() }
 }
 
+#[derive(PartialEq)]
 pub enum ProcessState {
     Unused,
     Runnable,
@@ -166,7 +167,7 @@ impl Process {
     }
 }
 
-impl ListNode for Process {
+impl ListNode<ListLink> for Process {
     fn get_link_offset() -> usize { offset_of!(Process => ptnode).get_byte_offset() }
 }
 

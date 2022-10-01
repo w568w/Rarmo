@@ -2,6 +2,7 @@ pub mod sem;
 pub mod list;
 pub mod pool;
 pub mod lock;
+pub mod tree;
 
 use core::ops::{Add, Rem, Sub};
 

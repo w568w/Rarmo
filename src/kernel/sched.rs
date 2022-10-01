@@ -1,10 +1,12 @@
 use crate::{common::{
-    list::{ListLink, ListNode},
+    list::ListNode,
     Container,
-}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}};
+}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}, println};
 use core::arch::global_asm;
+use core::mem::MaybeUninit;
 use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
+use crate::common::tree::{RbTree, RbTreeLink};
 
 use super::cpu::get_cpu_info;
 
@@ -13,11 +15,11 @@ pub struct Sched {
     pub idle_proc: Option<*mut Process>,
 }
 
-static mut RUN_QUEUE: ListLink = ListLink::uninit();
+static mut RUN_QUEUE: MaybeUninit<RbTree<SchInfo>> = MaybeUninit::uninit();
 
 pub extern "C" fn init_run_queue() {
     unsafe {
-        RUN_QUEUE.init();
+        RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| true));
     }
 }
 define_early_init!(init_run_queue);
@@ -36,21 +38,19 @@ impl Sched {
 
 #[repr(C)]
 pub struct SchInfo {
-    pub ptnode: ListLink,
+    pub ptnode: RbTreeLink,
 }
 
 impl SchInfo {
     pub fn uninit() -> Self {
         Self {
-            ptnode: ListLink::uninit(),
+            ptnode: RbTreeLink::new(),
         }
     }
-    pub fn init(&mut self) {
-        self.ptnode.init();
-    }
+    pub fn init(&mut self) {}
 }
 
-impl ListNode for SchInfo {
+impl ListNode<RbTreeLink> for SchInfo {
     fn get_link_offset() -> usize {
         offset_of!(SchInfo => ptnode).get_byte_offset()
     }
@@ -132,7 +132,7 @@ pub fn start_idle_proc() {
 
 // Choose the next process to run.
 fn pick_next() -> &'static mut Process {
-    let sch_info = unsafe { RUN_QUEUE.prev::<SchInfo>() };
+    let sch_info = unsafe { RUN_QUEUE.assume_init_mut().head() };
     if let Some(sch_info) = sch_info {
         let proc = Process::get_parent::<Process>(sch_info);
         proc
@@ -143,6 +143,9 @@ fn pick_next() -> &'static mut Process {
 }
 
 fn update_proc_state(proc: &mut Process, state: ProcessState) {
+    if proc.state == state {
+        return;
+    }
     proc.state = state;
     if proc.idle {
         return;
@@ -151,11 +154,13 @@ fn update_proc_state(proc: &mut Process, state: ProcessState) {
         ProcessState::Unused => panic!("Try to set a process to unused state"),
         ProcessState::Runnable => {
             unsafe {
-                RUN_QUEUE.insert_at_first(&mut proc.sch_info);
+                RUN_QUEUE.assume_init_mut().insert(&mut proc.sch_info);
             }
         }
         ProcessState::Running | ProcessState::Sleeping | ProcessState::Zombie => {
-            proc.sch_info.link().detach();
+            unsafe {
+                RUN_QUEUE.assume_init_mut().delete(&mut proc.sch_info);
+            }
         }
     }
 }

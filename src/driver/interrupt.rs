@@ -62,12 +62,10 @@ pub fn interrupt_global_handler() {
         let lock = IRQ_HANDLERS.read();
         for i in 0..NUM_IRQ_TYPES {
             if (map >> i) & 1 != 0 {
-                unsafe {
-                    if let Some(handler) = lock[i] {
-                        handler();
-                    } else {
-                        panic!("Unknown interrupt {}", i);
-                    }
+                if let Some(handler) = lock[i] {
+                    handler();
+                } else {
+                    panic!("Unknown interrupt {}", i);
                 }
             }
         }

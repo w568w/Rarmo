@@ -6,14 +6,24 @@ pub struct ListLink {
     pub next: *mut ListLink,
 }
 
-pub trait ListNode {
-    fn link_ptr(&mut self) -> *mut ListLink {
-        let ptr = self as *mut Self as *mut ListLink;
+pub trait ListNode<LinkType> {
+    fn link_ptr(&mut self) -> *mut LinkType {
+        let ptr = self as *mut Self as *mut LinkType;
         unsafe { ptr.byte_add(Self::get_link_offset()) }
     }
-    fn link(&mut self) -> &mut ListLink {
+    fn link(&mut self) -> &mut LinkType {
         unsafe { &mut *self.link_ptr() }
     }
+
+    fn container_ptr<ContainerType: ListNode<LinkType>>(link: *mut LinkType) -> *mut ContainerType {
+        let ptr = link as *mut ContainerType;
+        unsafe { ptr.byte_sub(ContainerType::get_link_offset()) }
+    }
+
+    fn container<ContainerType: ListNode<LinkType>>(link: *mut LinkType) -> &'static mut ContainerType {
+        unsafe { &mut *ContainerType::container_ptr(link) }
+    }
+
     fn get_link_offset() -> usize;
 }
 
@@ -28,7 +38,7 @@ impl ListLink {
         self.next = self;
         self.prev = self;
     }
-    pub fn insert_at_first<T: ListNode>(&mut self, node: *mut T) {
+    pub fn insert_at_first<T: ListNode<ListLink>>(&mut self, node: *mut T) {
         let node_link = unsafe { (*node).link_ptr() };
         unsafe {
             (*node_link).prev = self;
@@ -53,34 +63,27 @@ impl ListLink {
         let next_addr = self.next as usize;
         next_addr == self_addr
     }
-    pub fn container_ptr<T: ListNode>(&mut self) -> *mut T {
-        let ptr = self as *mut Self as *mut T;
-        unsafe { ptr.byte_sub(T::get_link_offset()) }
-    }
 
-    pub fn container<T: ListNode>(&mut self) -> &mut T {
-        unsafe { &mut *self.container_ptr::<T>() }
-    }
-    pub fn prev<T: ListNode>(&self) -> Option<&mut T> {
+    pub fn prev<T: ListNode<ListLink> + 'static>(&self) -> Option<&mut T> {
         if self.is_single() {
             None
         } else {
-            unsafe { (*(self.prev)).container_ptr::<T>().as_mut() }
+            Some(T::container(self.prev))
         }
     }
-    pub fn next<T: ListNode>(&self) -> Option<&mut T> {
+    pub fn next<T: ListNode<ListLink> + 'static>(&self) -> Option<&mut T> {
         if self.is_single() {
             None
         } else {
-            unsafe { (*(self.next)).container_ptr::<T>().as_mut() }
+            Some(T::container(self.next))
         }
     }
 
-    pub fn next_ptr<T: ListNode>(&self) -> Option<*mut T> {
+    pub fn next_ptr<T: ListNode<ListLink>>(&self) -> Option<*mut T> {
         if self.is_single() {
             None
         } else {
-            Some(unsafe { (*(self.next)).container_ptr::<T>() })
+            Some(T::container_ptr(self.next))
         }
     }
 
@@ -93,8 +96,8 @@ impl ListLink {
         self.next = self;
     }
 
-    pub fn iter<T>(&mut self, skip_self: bool) -> IterationInfo<T> {
-        IterationInfo {
+    pub fn iter<T>(&mut self, skip_self: bool) -> LinkedListIterationInfo<T> {
+        LinkedListIterationInfo {
             head: self as *mut Self,
             cur: self as *mut Self,
             typ: PhantomData,
@@ -105,7 +108,7 @@ impl ListLink {
 }
 
 
-pub struct IterationInfo<T> {
+pub struct LinkedListIterationInfo<T> {
     head: *mut ListLink,
     cur: *mut ListLink,
     typ: PhantomData<T>,
@@ -113,8 +116,8 @@ pub struct IterationInfo<T> {
     has_walked_head: bool,
 }
 
-impl<T: ListNode + 'static> Iterator for IterationInfo<T> {
-    type Item = &'static mut T;
+impl<Container: ListNode<ListLink> + 'static> Iterator for LinkedListIterationInfo<Container> {
+    type Item = &'static mut Container;
 
     fn next(&mut self) -> Option<Self::Item> {
         // If we have walked over `head` again, we should stop
@@ -133,7 +136,7 @@ impl<T: ListNode + 'static> Iterator for IterationInfo<T> {
             self.cur = unsafe { (*(self.cur)).next };
         }
 
-        let ret = unsafe { (*(self.cur)).container::<T>() };
+        let ret = Container::container(self.cur);
         self.cur = unsafe { (*(self.cur)).next };
         Some(ret)
     }
@@ -144,7 +147,7 @@ pub trait InplaceFilter {
     fn filter_inplace(self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>);
 }
 
-impl<T: ListNode + 'static> InplaceFilter for IterationInfo<T> {
+impl<T: ListNode<ListLink> + 'static> InplaceFilter for LinkedListIterationInfo<T> {
     type Item = &'static mut T;
 
     fn filter_inplace(mut self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>) {
@@ -164,7 +167,7 @@ impl<T: ListNode + 'static> InplaceFilter for IterationInfo<T> {
                 self.cur = unsafe { (*(self.cur)).next };
             }
 
-            let cur_container = unsafe { (*(self.cur)).container::<T>() };
+            let cur_container = T::container(self.cur);
             let next = unsafe { (*(self.cur)).next };
             if !f(cur_container) {
                 if unsafe { (*(self.cur)).is_single() } {
@@ -172,7 +175,7 @@ impl<T: ListNode + 'static> InplaceFilter for IterationInfo<T> {
                 }
                 unsafe { (*(self.cur)).detach() };
                 if let Some(after_detach) = after_detach {
-                    after_detach(unsafe { (*(self.cur)).container::<T>() });
+                    after_detach(T::container(self.cur));
                 }
             }
             self.cur = next;

@@ -20,7 +20,7 @@ impl Data {
     }
 }
 
-impl ListNode for Data {
+impl ListNode<ListLink> for Data {
     fn get_link_offset() -> usize {
         offset_of!(Data => link).get_byte_offset()
     }

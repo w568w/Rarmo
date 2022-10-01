@@ -19,7 +19,7 @@ pub struct WaitData {
     proc: *mut Process,
 }
 
-impl ListNode for WaitData {
+impl ListNode<ListLink> for WaitData {
     fn get_link_offset() -> usize {
         offset_of!(WaitData => sibling).get_byte_offset()
     }
