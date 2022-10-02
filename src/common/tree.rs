@@ -1,5 +1,6 @@
 use core::ptr;
 use crate::common::list::ListNode;
+use crate::common::tree::safe_link::{color, is_black, is_left_child, is_right_child, left_of, left_rotate_if_possible, parent_of, right_of, right_rotate_if_possible, set_color};
 
 #[derive(Clone, Copy)]
 pub enum RbTreeColor {
@@ -7,6 +8,9 @@ pub enum RbTreeColor {
     Black,
 }
 
+// A implementation of red-black tree.
+// This implementation is based on this article: https://blog.csdn.net/u014454538/article/details/120120216
+// It is not thread-safe, so use it with a lock.
 pub struct RbTree<T: ListNode<RbTreeLink> + 'static> {
     root: *mut RbTreeLink,
     size: usize,
@@ -22,6 +26,83 @@ pub struct RbTreeLink {
     pub color: RbTreeColor,
 }
 
+// Provide some helper functions for `RbTreeLink` which can be safely invoked on a null pointer.
+mod safe_link {
+    use core::ptr;
+    use crate::common::list::ListNode;
+    use crate::common::tree::{RbTree, RbTreeColor, RbTreeLink};
+
+    fn map_not_null<F>(link: *mut RbTreeLink, f: F) -> *mut RbTreeLink
+        where F: FnOnce(&mut RbTreeLink) -> *mut RbTreeLink {
+        if link != ptr::null_mut() {
+            f(unsafe { &mut *link })
+        } else {
+            ptr::null_mut()
+        }
+    }
+
+    fn do_if_not_null<F>(link: *mut RbTreeLink, f: F)
+        where F: FnOnce(&mut RbTreeLink) {
+        if link != ptr::null_mut() {
+            f(unsafe { &mut *link })
+        }
+    }
+
+    pub(super) fn left_rotate_if_possible<T: ListNode<RbTreeLink>>(parent: *mut RbTreeLink, tree: &mut RbTree<T>) {
+        do_if_not_null(parent, |parent|
+            do_if_not_null(right_of(parent), |_| unsafe { parent.left_rotate(tree) }));
+    }
+
+    pub(super) fn right_rotate_if_possible<T: ListNode<RbTreeLink>>(parent: *mut RbTreeLink, tree: &mut RbTree<T>) {
+        do_if_not_null(parent, |parent|
+            do_if_not_null(left_of(parent), |_| unsafe { parent.right_rotate(tree) }));
+    }
+
+    pub(super) fn parent_of(link: *mut RbTreeLink) -> *mut RbTreeLink {
+        map_not_null(link, |link| link.parent)
+    }
+
+    pub(super) fn left_of(link: *mut RbTreeLink) -> *mut RbTreeLink {
+        map_not_null(link, |link| link.left)
+    }
+
+    pub(super) fn right_of(link: *mut RbTreeLink) -> *mut RbTreeLink {
+        map_not_null(link, |link| link.right)
+    }
+
+    pub(super) fn is_left_child(child: *mut RbTreeLink, parent: *mut RbTreeLink) -> bool {
+        if child == ptr::null_mut() || parent == ptr::null_mut() {
+            false
+        } else {
+            left_of(parent) == child
+        }
+    }
+
+    pub(super) fn is_right_child(child: *mut RbTreeLink, parent: *mut RbTreeLink) -> bool {
+        if child == ptr::null_mut() || parent == ptr::null_mut() {
+            false
+        } else {
+            right_of(parent) == child
+        }
+    }
+
+    pub(super) fn set_color(link: *mut RbTreeLink, color: RbTreeColor) {
+        do_if_not_null(link, |link| link.color = color)
+    }
+
+    pub(super) fn color(link: *mut RbTreeLink) -> RbTreeColor {
+        if link == ptr::null_mut() {
+            RbTreeColor::Black
+        } else {
+            unsafe { (*link).color }
+        }
+    }
+
+    pub(super) fn is_black(link: *mut RbTreeLink) -> bool {
+        link.is_null() || unsafe { matches!((*link).color,RbTreeColor::Black) }
+    }
+}
+
 impl RbTreeLink {
     pub const fn new() -> Self {
         Self {
@@ -30,13 +111,6 @@ impl RbTreeLink {
             right: ptr::null_mut(),
             color: RbTreeColor::Red,
         }
-    }
-
-    pub fn left_child(&mut self) -> &mut RbTreeLink {
-        unsafe { &mut *self.left }
-    }
-    pub fn right_child(&mut self) -> &mut RbTreeLink {
-        unsafe { &mut *self.right }
     }
 
     fn set_left_child(&mut self, child: *mut RbTreeLink) {
@@ -57,7 +131,7 @@ impl RbTreeLink {
         if self.parent.is_null() {
             false
         } else {
-            let parent_left = unsafe { (*self.parent).left } as *const RbTreeLink;
+            let parent_left = left_of(self.parent) as *const RbTreeLink;
             parent_left == self
         }
     }
@@ -103,6 +177,34 @@ impl RbTreeLink {
     }
 }
 
+impl<T: ListNode<RbTreeLink> + 'static> core::fmt::Display for RbTree<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        // Print the whole tree as a bracketed expression.
+        // (root (left) (right))
+        // (root (left))
+        // (root () (right))
+        // (root)
+        // ()
+        fn print_node(node: *mut RbTreeLink, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            if node.is_null() {
+                write!(f, "()")?;
+            } else {
+                let node = unsafe { &mut *node };
+                write!(f, "{}(", match node.color {
+                    RbTreeColor::Red => "R",
+                    RbTreeColor::Black => "B",
+                })?;
+                print_node(node.left, f)?;
+                write!(f, " ")?;
+                print_node(node.right, f)?;
+                write!(f, ")")?;
+            }
+            Ok(())
+        }
+        print_node(self.root, f)
+    }
+}
+
 impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
     pub fn new(cmp: fn(&mut T, &mut T) -> bool) -> Self {
         Self {
@@ -111,102 +213,105 @@ impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
             cmp,
         }
     }
+
     fn inner_cmp(&self, a: *mut RbTreeLink, b: *mut RbTreeLink) -> bool {
         (self.cmp)(T::container(a), T::container(b))
     }
-    fn is_black(link: *mut RbTreeLink) -> bool {
-        link.is_null() || unsafe { matches!((*link).color,RbTreeColor::Black) }
-    }
-    unsafe fn fix_insert(&mut self, mut node_to_fix: *mut RbTreeLink) {
-        (*node_to_fix).color = RbTreeColor::Red;
 
-        while !node_to_fix.is_null() && self.root != node_to_fix && !Self::is_black((*node_to_fix).parent) {
-            let mut parent = (*node_to_fix).parent;
-            let grandparent = (*parent).parent;
-            if parent == (*grandparent).left {
+
+    fn fix_insert(&mut self, mut node_to_fix: *mut RbTreeLink) {
+        set_color(node_to_fix, RbTreeColor::Red);
+
+        while !node_to_fix.is_null() && self.root != node_to_fix && !is_black(parent_of(node_to_fix)) {
+            let mut parent = parent_of(node_to_fix);
+            let mut grandparent = parent_of(parent);
+            if is_left_child(parent, grandparent) {
                 // If parent is the left child
-                let uncle = (*grandparent).right;
-                if !Self::is_black(uncle) {
+                let uncle = right_of(grandparent);
+                if !is_black(uncle) {
                     // If uncle is red, recolor parent and uncle to black, grandparent to red,
-                    // and fix at grandparent
-                    (*parent).color = RbTreeColor::Black;
-                    (*uncle).color = RbTreeColor::Black;
-                    (*grandparent).color = RbTreeColor::Red;
+                    // and fix at grandparent`
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(uncle, RbTreeColor::Black);
+                    set_color(grandparent, RbTreeColor::Red);
                     node_to_fix = grandparent;
                 } else {
                     // If uncle is black and node is the left child, we need to recolor parent to black, grandparent to red,
                     // and right rotate at grandparent
-                    if node_to_fix == (*parent).right {
+                    if is_right_child(node_to_fix, parent) {
                         // Special case: if node is the right child, left rotate at parent first!
                         // And then node will be set to its parent. `parent` will be set to original `node_to_fix`.
                         node_to_fix = parent;
-                        (*node_to_fix).left_rotate(self);
-                        parent = (*node_to_fix).parent;
+                        left_rotate_if_possible(node_to_fix, self);
+                        parent = parent_of(node_to_fix);
+                        grandparent = parent_of(parent);
                     }
-                    (*parent).color = RbTreeColor::Black;
-                    (*grandparent).color = RbTreeColor::Red;
-                    (*grandparent).right_rotate(self);
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(grandparent, RbTreeColor::Red);
+                    right_rotate_if_possible(grandparent, self);
                 }
             } else {
-                let uncle = (*grandparent).left;
-                if !Self::is_black(uncle) {
-                    (*parent).color = RbTreeColor::Black;
-                    (*uncle).color = RbTreeColor::Black;
-                    (*grandparent).color = RbTreeColor::Red;
+                let uncle = left_of(grandparent);
+                if !is_black(uncle) {
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(uncle, RbTreeColor::Black);
+                    set_color(grandparent, RbTreeColor::Red);
                     node_to_fix = grandparent;
                 } else {
-                    if node_to_fix == (*parent).left {
+                    if is_left_child(node_to_fix, parent) {
                         node_to_fix = parent;
-                        (*node_to_fix).right_rotate(self);
-                        parent = (*node_to_fix).parent;
+                        right_rotate_if_possible(node_to_fix, self);
+                        parent = parent_of(node_to_fix);
+                        grandparent = parent_of(parent);
                     }
-                    (*parent).color = RbTreeColor::Black;
-                    (*grandparent).color = RbTreeColor::Red;
-                    (*grandparent).left_rotate(self);
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(grandparent, RbTreeColor::Red);
+                    left_rotate_if_possible(grandparent, self);
                 }
             }
         }
 
         // Rule: root is always black!
-        (*self.root).color = RbTreeColor::Black;
+        set_color(self.root, RbTreeColor::Black);
     }
-    unsafe fn just_insert(&mut self, link: *mut RbTreeLink) -> bool {
+
+    fn just_insert(&mut self, link: *mut RbTreeLink) -> bool {
         if self.root.is_null() {
             self.root = link;
-            (*link).color = RbTreeColor::Black;
+            set_color(link, RbTreeColor::Black);
             false
         } else {
             let mut parent = self.root;
             loop {
                 if self.inner_cmp(link, parent) {
-                    if (*parent).left.is_null() {
-                        (*parent).set_left_child(link);
-                        return matches!((*parent).color, RbTreeColor::Red);
+                    if left_of(parent).is_null() {
+                        unsafe { (*parent).set_left_child(link) };
+                        return !is_black(parent);
                     } else {
-                        parent = (*parent).left;
+                        parent = left_of(parent);
                     }
                 } else {
-                    if (*parent).right.is_null() {
-                        (*parent).set_right_child(link);
-                        return matches!((*parent).color, RbTreeColor::Red);
+                    if right_of(parent).is_null() {
+                        unsafe { (*parent).set_right_child(link) };
+                        return !is_black(parent);
                     } else {
-                        parent = (*parent).right;
+                        parent = right_of(parent);
                     }
                 }
             }
         }
     }
+
     pub fn insert(&mut self, node: *mut T) {
         let link = unsafe { (*node).link_ptr() };
-        unsafe {
-            if self.just_insert(link) {
-                self.fix_insert(link);
-            }
+        if self.just_insert(link) {
+            self.fix_insert(link);
         }
         self.size += 1;
     }
-    unsafe fn just_delete(&mut self, link: *mut RbTreeLink) -> (bool, *mut RbTreeLink) {
-        let parent = (*link).parent;
+
+    unsafe fn just_delete(&mut self, link: *mut RbTreeLink) -> Option<*mut RbTreeLink> {
+        let parent = parent_of(link);
         // Find a candidate to replace the deleted node `link`.
         let mut child = if (*link).left.is_null() {
             // If `link` has no left child, we can just replace it with its right child (can be null).
@@ -220,7 +325,6 @@ impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
             while !(*successor).left.is_null() {
                 successor = (*successor).left;
             }
-
             let successor_parent = (*successor).parent;
             let successor_right = (*successor).right;
             if successor_parent != link {
@@ -236,135 +340,130 @@ impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
         // Tell the parent of `link` that its new child is `child` now.
         if parent.is_null() {
             self.root = child;
-        } else if link == (*parent).left {
+        } else if is_left_child(link, parent) {
             (*parent).set_left_child(child);
         } else {
             (*parent).set_right_child(child);
         }
         if child.is_null() {
             // If `child` is null (i.e. `link` has no child), we can just delete `link` (we have already done it) and return.
-            (false, child)
+            None
         } else {
             // We need to fix the tree if `link` is black.
             (*child).parent = parent;
-            (*child).color = (*link).color;
-            (Self::is_black(child), child)
+            set_color(child, color(link));
+
+            if is_black(child) { Some(child) } else { None }
         }
     }
-    unsafe fn fix_delete(&mut self, mut node_to_fix: *mut RbTreeLink) {
-        while !node_to_fix.is_null() && self.root != node_to_fix && Self::is_black(node_to_fix) {
-            let mut parent = (*node_to_fix).parent;
-            if node_to_fix == (*parent).left {
+
+    fn fix_delete(&mut self, mut node_to_fix: *mut RbTreeLink) {
+        while !node_to_fix.is_null() && self.root != node_to_fix && is_black(node_to_fix) {
+            let mut parent = parent_of(node_to_fix);
+            if is_left_child(node_to_fix, parent) {
                 // If node is the left child
-                let mut sibling = (*parent).right;
-                if !Self::is_black(sibling) {
+                let mut sibling = right_of(parent);
+                if !is_black(sibling) {
                     // If sibling is red, recolor sibling to black, parent to red, and left rotate at parent
-                    (*sibling).color = RbTreeColor::Black;
-                    (*parent).color = RbTreeColor::Red;
-                    (*parent).left_rotate(self);
-                    parent = (*node_to_fix).parent;
-                    sibling = (*parent).right;
+                    set_color(sibling, RbTreeColor::Black);
+                    set_color(parent, RbTreeColor::Red);
+                    left_rotate_if_possible(parent, self);
+                    parent = parent_of(node_to_fix);
+                    sibling = right_of(parent);
                 }
-                if !sibling.is_null() && Self::is_black((*sibling).left) && Self::is_black((*sibling).right) {
+                if is_black(left_of(sibling)) && is_black(right_of(sibling)) {
                     // If sibling's children are both black, recolor sibling to red and fix at parent
-                    (*sibling).color = RbTreeColor::Red;
+                    set_color(sibling, RbTreeColor::Red);
                     node_to_fix = parent;
                 } else {
-                    if !sibling.is_null() && Self::is_black((*sibling).right) {
+                    if is_black(right_of(sibling)) {
                         // If sibling's right child is black, recolor sibling to red, left child to black, and right rotate at sibling
-                        if !(*sibling).left.is_null() {
-                            (*(*sibling).left).color = RbTreeColor::Black;
-                        }
-                        (*sibling).color = RbTreeColor::Red;
-                        (*sibling).right_rotate(self);
-                        parent = (*node_to_fix).parent;
-                        sibling = (*parent).right;
+                        set_color(sibling, RbTreeColor::Red);
+                        set_color(left_of(sibling), RbTreeColor::Black);
+                        right_rotate_if_possible(sibling, self);
+                        parent = parent_of(node_to_fix);
+                        sibling = right_of(parent);
                     }
                     // If sibling's right child is red, recolor sibling to parent's color, parent to black, right child to black, and left rotate at parent
-                    (*sibling).color = (*parent).color;
-                    (*parent).color = RbTreeColor::Black;
-                    if !(*sibling).right.is_null() {
-                        (*(*sibling).right).color = RbTreeColor::Black;
-                    }
-                    (*parent).left_rotate(self);
-                    parent = (*node_to_fix).parent;
+                    set_color(sibling, color(parent));
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(right_of(sibling), RbTreeColor::Black);
+                    left_rotate_if_possible(parent, self);
                     node_to_fix = self.root;
                 }
             } else {
-                // If node is the right child
-                let mut sibling = (*parent).left;
-                if !Self::is_black(sibling) {
-                    // If sibling is red, recolor sibling to black, parent to red, and right rotate at parent
-                    (*sibling).color = RbTreeColor::Black;
-                    (*parent).color = RbTreeColor::Red;
-                    (*parent).right_rotate(self);
-                    parent = (*node_to_fix).parent;
-                    sibling = (*parent).left;
+                // If node is the right child, symmetric to the above
+                let mut sibling = left_of(parent);
+                if !is_black(sibling) {
+                    set_color(sibling, RbTreeColor::Black);
+                    set_color(parent, RbTreeColor::Red);
+                    right_rotate_if_possible(parent, self);
+                    parent = parent_of(node_to_fix);
+                    sibling = left_of(parent);
                 }
-                if !sibling.is_null() && Self::is_black((*sibling).left) && Self::is_black((*sibling).right) {
-                    // If sibling's children are both black, recolor sibling to red and fix at parent
-                    (*sibling).color = RbTreeColor::Red;
+                if is_black(left_of(sibling)) && is_black(right_of(sibling)) {
+                    set_color(sibling, RbTreeColor::Red);
                     node_to_fix = parent;
                 } else {
-                    if !sibling.is_null() && Self::is_black((*sibling).left) {
-                        // If sibling's left child is black, recolor sibling to red, right child to black, and left rotate at sibling
-                        if !(*sibling).right.is_null() {
-                            (*(*sibling).right).color = RbTreeColor::Black;
-                        }
-                        (*sibling).color = RbTreeColor::Red;
-                        (*sibling).left_rotate(self);
-                        parent = (*node_to_fix).parent;
-                        sibling = (*parent).left;
+                    if is_black(left_of(sibling)) {
+                        set_color(sibling, RbTreeColor::Red);
+                        set_color(right_of(sibling), RbTreeColor::Black);
+                        left_rotate_if_possible(sibling, self);
+                        parent = parent_of(node_to_fix);
+                        sibling = left_of(parent);
                     }
-                    // If sibling's left child is red, recolor sibling to parent's color, parent to black, left child to black, and right rotate at parent
-                    (*sibling).color = (*parent).color;
-                    (*parent).color = RbTreeColor::Black;
-                    if !(*sibling).left.is_null() {
-                        (*(*sibling).left).color = RbTreeColor::Black;
-                    }
-                    (*parent).right_rotate(self);
-                    parent = (*node_to_fix).parent;
+                    set_color(sibling, color(parent));
+                    set_color(parent, RbTreeColor::Black);
+                    set_color(left_of(sibling), RbTreeColor::Black);
+                    right_rotate_if_possible(parent, self);
                     node_to_fix = self.root;
                 }
             }
         }
         // If node is red (i.e. it is the root), recolor it to black!
-        (*node_to_fix).color = RbTreeColor::Black;
+        set_color(node_to_fix, RbTreeColor::Black);
     }
+
+    // Return whether `link` is in the tree.
+    //
+    // Note: it only checks the root of `link`, and does not guarantee that `link` is really IN the tree.
+    // If you need to check that, use `contains` instead.
     pub fn is_attached(&self, mut link: *mut RbTreeLink) -> bool {
         while !link.is_null() {
             if self.root == link {
                 return true;
             }
-            link = unsafe { (*link).parent };
+            link = parent_of(link);
         }
         false
     }
+
     pub fn delete(&mut self, node: &mut T) {
         let link = unsafe { (*node).link_ptr() };
         if !self.is_attached(link) {
             return;
         }
         unsafe {
-            let (need_fix, node_to_fix) = self.just_delete(link);
-            if need_fix {
+            if let Some(node_to_fix) = self.just_delete(link) {
                 self.fix_delete(node_to_fix);
             }
             (*link).parent = ptr::null_mut();
             (*link).left = ptr::null_mut();
             (*link).right = ptr::null_mut();
+            (*link).color = RbTreeColor::Red;
         }
 
         self.size -= 1;
     }
 
+    // Return the biggest node in the tree.
     pub fn head(&mut self) -> Option<&mut T> {
         if self.size == 0 {
             None
         } else {
             let mut node = self.root;
-            while !unsafe { (*node).right.is_null() } {
-                node = unsafe { &mut *(*node).right };
+            while !right_of(node).is_null() {
+                node = right_of(node);
             }
             let ret = T::container(node);
             Some(ret)
