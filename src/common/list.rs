@@ -89,8 +89,12 @@ impl ListLink {
 
     pub fn detach(&mut self) {
         unsafe {
-            (*(self.prev)).next = self.next;
-            (*(self.next)).prev = self.prev;
+            if !self.prev.is_null(){
+                (*(self.prev)).next = self.next;
+            }
+            if !self.next.is_null(){
+                (*(self.next)).prev = self.prev;
+            }
         }
         self.prev = self;
         self.next = self;
