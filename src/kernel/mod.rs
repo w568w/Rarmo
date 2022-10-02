@@ -3,7 +3,6 @@ use crate::aarch64::intrinsic::{disable_trap, enable_trap, wfi};
 use crate::kernel::cpu::set_cpu_on;
 use crate::kernel::sched::yield_;
 use crate::{get_cpu_id, set_cpu_off, stop_cpu};
-use crate::tests::proc_state::proc_test;
 
 pub mod init;
 pub mod mem;
@@ -69,8 +68,12 @@ pub fn idle_entry() -> ! {
 }
 
 pub fn kernel_entry(_arg: usize) -> ! {
+    #[cfg(test)]
+    {
+        use crate::run_test;
+        run_test();
+    }
     // todo: do_rest_init()
-    proc_test();
     loop {
         yield_();
     }

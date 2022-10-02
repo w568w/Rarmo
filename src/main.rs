@@ -3,8 +3,13 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(const_maybe_uninit_uninit_array)]
 #![feature(const_mut_refs)]
+
 #![no_std]
 #![no_main]
+
+#![feature(custom_test_frameworks)]
+#![test_runner(start_test)]
+#![reexport_test_harness_main = "test_main"]
 
 #![feature(default_alloc_error_handler)]
 extern crate alloc;
@@ -32,6 +37,24 @@ global_asm!(include_str!("entry.asm"));
 
 static PANIC_LOCK: Mutex<()> = Mutex::new(());
 
+#[cfg(test)]
+fn run_test() {
+    test_main();
+}
+
+#[cfg(test)]
+fn start_test(tests: &[&dyn Fn()]) {
+    println!("------------------------");
+    println!("Running {} test(s)", tests.len());
+    println!("------------------------");
+    println!();
+    for test in tests {
+        println!("Running test at: {:p}", test);
+        println!("------TEST START------");
+        test();
+        println!("------TEST END------");
+    }
+}
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
@@ -67,8 +90,6 @@ pub fn main() -> ! {
     }
     idle_entry();
 }
-
-
 
 
 // Clean up the BSS section with zero.

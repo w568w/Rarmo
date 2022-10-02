@@ -112,6 +112,7 @@ unsafe fn proc_test_1(_: usize) {
     exit(0);
 }
 
+#[test_case]
 pub fn proc_test() {
     println!("proc_test");
     let p = create_proc();

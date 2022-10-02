@@ -1,7 +1,7 @@
 use crate::{common::{
     list::ListNode,
     Container,
-}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}, println};
+}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}};
 use core::arch::global_asm;
 use core::mem::MaybeUninit;
 use field_offset::offset_of;

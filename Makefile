@@ -23,6 +23,8 @@
 # gdb-multiarch
 # - pacman -S mingw-w64-x86_64-gdb-multiarch (In MSYS2, if you are on Windows)
 # - apt install gdb-multiarch (If you are on Debian)
+# jq
+# - apt install jq (If you are on Debian)
 # Add the path to mingw32-make.exe to PATH environment variable (if you are on Windows)
 # rustup target add aarch64-unknown-none
 # rustup component add llvm-tools-preview
@@ -55,15 +57,24 @@ ifeq ($(OS), Windows_NT)
 	SYSBIN := $(MSYS2_ROOT)usr/bin/
 	export RM := del
 	export MCOPY := $(mkfile_dir)boot/mtools/mcopy
+	export COPY := copy
+	export JQ := $(mkfile_dir)misc/jq
+	export CAT := type
 	export DELIMITER_CHAR := &
+	export FILE_SEPARATOR := \\
 	GDB := $(MSYS2_ROOT)mingw64/bin/gdb-multiarch
 else
 	QEMU_ROOT :=
-	GCC_ROOT :=
+	# Insert your path to the ARM cross compiler here.
+	GCC_ROOT := /your/path/to/gcc/bin/
 	SYSBIN :=
 	export RM := rm
 	export MCOPY := mcopy
+	export COPY := cp
+	export JQ := jq
+	export CAT := cat
 	export DELIMITER_CHAR := ;
+	export FILE_SEPARATOR := /
 	GDB := gdb-multiarch
 endif
 # Configure the path of other executables. You can modify them manually if you want.
@@ -118,6 +129,18 @@ boot/sd.img: $(kernel_bin)
 run: boot/sd.img
 	$(QEMU) $(qemu_flags)
 
+TMP_FILE := $(file < test_files_filtered.txt)
+.PHONY:inner_test
+inner_test: $(ARCH_ASM_FILES)
+	$(COPY) $(TMP_FILE) $(subst /,$(FILE_SEPARATOR),$(artifact_prefix))
+	$(MAKE) run
+
+.PHONY:test
+test: $(ARCH_ASM_FILES)
+	cargo test --target $(TARGET) --no-run --message-format json > test_files.txt
+	$(JQ) -r "select(.profile.test == true) | .filenames[]" < test_files.txt > test_files_filtered.txt
+	$(MAKE) inner_test
+
 .PHONY:qemu-debug
 qemu-debug: boot/sd.img
 	$(QEMU) $(qemu_flags) -nographic \
@@ -132,6 +155,8 @@ debug: $(artifact_prefix)
 
 .PHONY:clean
 clean:
-	-cd src && $(RM) entry.asm && cd ..
+	-$(RM) test_files.txt
+	-$(RM) test_files_filtered.txt
+	-cd src $(DELIMITER_CHAR) $(RM) entry.asm $(DELIMITER_CHAR) cd ..
 	-$(foreach file,$(ARCH_ASM_FILES),cd $(dir $(file)) $(DELIMITER_CHAR) $(RM) $(notdir $(file)) $(DELIMITER_CHAR) cd $(mkfile_dir) $(DELIMITER_CHAR))
 	-$(MAKE) -C boot clean
