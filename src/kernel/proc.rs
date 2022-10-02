@@ -241,7 +241,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     let mut proc = &mut *p;
     proc.fill_default_fields();
     let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
-    proc.kernel_stack = stack_top.byte_add(PAGE_SIZE);
+    proc.kernel_stack = stack_top.byte_add(KERNEL_STACK_SIZE);
     proc.kernel_context = proc.kernel_stack
         .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
