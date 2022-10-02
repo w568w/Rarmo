@@ -6,6 +6,7 @@ use core::arch::global_asm;
 use core::mem::MaybeUninit;
 use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
+use crate::aarch64::intrinsic::get_time_us;
 use crate::common::tree::{RbTree, RbTreeLink};
 
 use super::cpu::get_cpu_info;
@@ -19,7 +20,13 @@ static mut RUN_QUEUE: MaybeUninit<RbTree<SchInfo>> = MaybeUninit::uninit();
 
 pub extern "C" fn init_run_queue() {
     unsafe {
-        RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| true));
+        RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| {
+            if a.vruntime != b.vruntime {
+                a.vruntime < b.vruntime
+            } else {
+                Process::get_parent::<Process>(a).pid < Process::get_parent::<Process>(b).pid
+            }
+        }));
     }
 }
 define_early_init!(init_run_queue);
@@ -39,11 +46,17 @@ impl Sched {
 #[repr(C)]
 pub struct SchInfo {
     pub ptnode: RbTreeLink,
+    pub vruntime: u64,
+    pub nice: usize,
+    pub start_time: u64,
 }
 
 impl SchInfo {
     pub fn uninit() -> Self {
         Self {
+            start_time: 0,
+            nice: SCHED_MEDIUM_NICE,
+            vruntime: 0,
             ptnode: RbTreeLink::new(),
         }
     }
@@ -130,9 +143,22 @@ pub fn start_idle_proc() {
     release_sched_lock(lock);
 }
 
+const SCHED_PRIO_TO_WEIGHT: [u64; 40] = [
+    /* -20 */     88761, 71755, 56483, 46273, 36291,
+    /* -15 */     29154, 23254, 18705, 14949, 11916,
+    /* -10 */     9548, 7620, 6100, 4904, 3906,
+    /*  -5 */     3121, 2501, 1991, 1586, 1277,
+    /*   0 */     1024, 820, 655, 526, 423,
+    /*   5 */     335, 272, 215, 172, 137,
+    /*  10 */     110, 87, 70, 56, 45,
+    /*  15 */     36, 29, 23, 18, 15,
+];
+const SCHED_MEDIUM_NICE: usize = 20;
+const SCHED_MIN_GRANULARITY_US: u64 = 1000;
+
 // Choose the next process to run.
 fn pick_next() -> &'static mut Process {
-    let sch_info = unsafe { RUN_QUEUE.assume_init_mut().head() };
+    let sch_info = unsafe { RUN_QUEUE.assume_init_mut().minimum() };
     if let Some(sch_info) = sch_info {
         let proc = Process::get_parent::<Process>(sch_info);
         proc
@@ -169,14 +195,39 @@ fn update_this_state(state: ProcessState) {
     update_proc_state(thisproc(), state)
 }
 
+
+fn stop_tick_and_update_vruntime(cur: &mut Process) {
+    if cur.sch_info.start_time > 0 {
+        let wall_time = get_time_us() - cur.sch_info.start_time;
+        cur.sch_info.vruntime += wall_time / SCHED_PRIO_TO_WEIGHT[SCHED_MEDIUM_NICE] * SCHED_PRIO_TO_WEIGHT[cur.sch_info.nice];
+    }
+}
+
+fn start_tick(cur: &mut Process) {
+    cur.sch_info.start_time = get_time_us();
+}
+
 pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
+    assert!(!matches!(new_state, ProcessState::Unused | ProcessState::Running));
+
     let this = thisproc();
     assert!(matches!(this.state, ProcessState::Running));
+    stop_tick_and_update_vruntime(this);
     update_this_state(new_state);
-    let next = pick_next();
+    let mut next: *mut Process = pick_next();
+
+    // todo: move this to a better place
+    if matches!(this.state,ProcessState::Runnable)
+        && unsafe { (*next).sch_info.vruntime } + SCHED_MIN_GRANULARITY_US > this.sch_info.vruntime {
+        // If next process only has a little less time than current process, we don't need to switch.
+        next = this;
+    }
+
+    let next = unsafe { &mut *next };
     update_this_proc(next);
     assert!(matches!(next.state, ProcessState::Runnable));
     update_proc_state(next, ProcessState::Running);
+    start_tick(next);
     if next.pid != this.pid {
         unsafe {
             swtch(next.kernel_context, &mut this.kernel_context);

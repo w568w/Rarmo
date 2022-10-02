@@ -292,6 +292,7 @@ pub fn create_idle_process() -> Box<Process> {
     proc.state = ProcessState::Runnable;
     proc.idle = true;
     proc.kernel_stack = get_kernel_stack_bottom();
+    proc.sch_info.nice = 0;
     proc
 }
 

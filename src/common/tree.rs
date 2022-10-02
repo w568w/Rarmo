@@ -439,7 +439,7 @@ impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
     }
 
     pub fn delete(&mut self, node: &mut T) {
-        let link = unsafe { (*node).link_ptr() };
+        let link = node.link_ptr();
         if !self.is_attached(link) {
             return;
         }
@@ -457,13 +457,27 @@ impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
     }
 
     // Return the biggest node in the tree.
-    pub fn head(&mut self) -> Option<&mut T> {
+    pub fn maximum(&mut self) -> Option<&mut T> {
         if self.size == 0 {
             None
         } else {
             let mut node = self.root;
             while !right_of(node).is_null() {
                 node = right_of(node);
+            }
+            let ret = T::container(node);
+            Some(ret)
+        }
+    }
+
+    // Return the smallest node in the tree.
+    pub fn minimum(&mut self) -> Option<&mut T> {
+        if self.size == 0 {
+            None
+        } else {
+            let mut node = self.root;
+            while !left_of(node).is_null() {
+                node = left_of(node);
             }
             let ret = T::container(node);
             Some(ret)
