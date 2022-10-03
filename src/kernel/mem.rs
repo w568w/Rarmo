@@ -62,4 +62,3 @@ const fn align_num(size: usize) -> usize {
         0
     }
 }
-

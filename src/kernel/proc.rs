@@ -10,7 +10,7 @@ use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
 use field_offset::offset_of;
-use crate::common::lock::CPUReentrantMutex;
+use spin::Mutex;
 use crate::common::pool::LockedArrayPool;
 use crate::kernel::proc::guard::put_guard_bits;
 
@@ -20,7 +20,7 @@ pub fn root_proc() -> &'static mut Process {
     unsafe { ROOT_PROC.assume_init_mut() }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum ProcessState {
     Unused,
     Runnable,
@@ -29,7 +29,7 @@ pub enum ProcessState {
     Zombie,
 }
 
-static PROC_LOCK: CPUReentrantMutex<()> = CPUReentrantMutex::new(());
+static PROC_LOCK: Mutex<()> = Mutex::new(());
 
 const PID_POOL_SIZE: usize = 1000;
 static PID_POOL: LockedArrayPool<usize, PID_POOL_SIZE> = LockedArrayPool::new();
@@ -102,7 +102,6 @@ impl Process {
     // Attach a new child to the process.
     // It will also set the child's parent to this process.
     pub fn attach_child(&mut self, child: &mut Process) {
-        let _lock = PROC_LOCK.lock();
         child.parent = Some(self);
         if let Some(first_child) = self.first_child {
             let first_child = unsafe { &mut *first_child };
@@ -128,7 +127,6 @@ impl Process {
         if self.pid == root_proc().pid {
             return;
         }
-        let _lock = PROC_LOCK.lock();
         if let Some(first_child) = self.first_child {
             let first_child = unsafe { &mut *first_child };
             // Merge the child list to the root process's child list.
@@ -187,7 +185,7 @@ impl Default for Box<Process> {
 pub fn exit(code: usize) -> ! {
     let proc = thisproc();
     proc.exit_code = code;
-
+    let proc_lock = PROC_LOCK.lock();
     // Set the kill flag.
     proc.killed = true;
     // Transfer all children to the root process.
@@ -199,6 +197,7 @@ pub fn exit(code: usize) -> ! {
 
     // This process is a zombie, and will be cleaned up by the parent's wait().
     let lock = acquire_sched_lock();
+    drop(proc_lock);
     sched(lock, ProcessState::Zombie);
 
     panic!("Zombie process should not be scheduled");
@@ -249,6 +248,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.
     if let Some(parent) = try_thisproc() {
+        let _lock = PROC_LOCK.lock();
         parent.attach_child(proc);
     }
 }

@@ -79,8 +79,9 @@ extern "C" {
 
 #[inline(always)]
 pub fn yield_() {
-    let _lock = acquire_sched_lock();
-    sched(_lock, ProcessState::Runnable);
+    if let Some(lock) = try_acquire_sched_lock() {
+        sched(lock, ProcessState::Runnable);
+    }
 }
 
 fn get_cpu_sched() -> &'static mut Sched {
@@ -120,6 +121,10 @@ pub fn activate(proc: &mut Process) {
 
 pub fn acquire_sched_lock<'a>() -> MutexGuard<'a, ()> {
     SCHED_LOCK.lock()
+}
+
+pub fn try_acquire_sched_lock<'a>() -> Option<MutexGuard<'a, ()>> {
+    SCHED_LOCK.try_lock()
 }
 
 pub fn release_sched_lock(_sched_lock: MutexGuard<()>) {
