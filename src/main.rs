@@ -29,6 +29,7 @@ use driver::uart::UartDevice;
 use aarch64::intrinsic::{get_cpu_id, stop_cpu};
 use crate::aarch64::intrinsic::dsb_sy;
 use crate::cores::console::CONSOLE;
+use crate::driver::power::power_off;
 use crate::kernel::cpu::{set_cpu_off, wait_all_cpu_off};
 use crate::kernel::{idle_entry, PANIC_FLAG};
 
@@ -54,6 +55,7 @@ fn start_test(tests: &[&dyn Fn()]) {
         test();
         println!("------TEST END------");
     }
+    power_off();
 }
 
 #[panic_handler]
