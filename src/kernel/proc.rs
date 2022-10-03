@@ -225,7 +225,8 @@ pub fn wait() -> Option<(usize, usize)> {
                 x.user_context = ptr::null_mut();
             }
             proc.detach_child(x);
-            // Scheduler has removed it and parent has detached it, so we can free it.
+            PID_POOL.free(pid);
+            // Scheduler has removed it and parent has also detached it, so we can free it.
             let _proc_to_be_dropped = unsafe { Box::from_raw(x) };
             return Some((pid, exit_code));
         }
