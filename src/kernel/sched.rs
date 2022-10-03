@@ -8,6 +8,7 @@ use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
 use crate::aarch64::intrinsic::get_time_us;
 use crate::common::tree::{RbTree, RbTreeLink};
+use crate::kernel::proc::guard::check_guard_bits;
 
 use super::cpu::get_cpu_info;
 
@@ -213,6 +214,9 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     let this = thisproc();
     assert!(matches!(this.state, ProcessState::Running));
     stop_tick_and_update_vruntime(this);
+    if !this.idle {
+        assert!(unsafe { check_guard_bits(this.kernel_stack) }, "Proc {} has corrupted its kernel stack", this.pid);
+    }
     update_this_state(new_state);
     let mut next: *mut Process = pick_next();
 

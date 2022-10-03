@@ -12,6 +12,7 @@ use core::ptr;
 use field_offset::offset_of;
 use crate::common::lock::CPUReentrantMutex;
 use crate::common::pool::LockedArrayPool;
+use crate::kernel::proc::guard::put_guard_bits;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
 
@@ -242,6 +243,7 @@ pub unsafe fn init_proc(p: &mut Process) {
     proc.fill_default_fields();
     let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
     proc.kernel_stack = stack_top.byte_add(KERNEL_STACK_SIZE);
+    put_guard_bits(proc.kernel_stack);
     proc.kernel_context = proc.kernel_stack
         .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
@@ -285,6 +287,25 @@ pub fn start_proc(p: &mut Process, entry: *const fn(usize), arg: usize) -> usize
     let pid = p.pid;
     activate(p);
     pid
+}
+
+pub mod guard {
+    use crate::kernel::KERNEL_STACK_SIZE;
+
+    pub unsafe fn put_guard_bits(mut addr: *mut u8) {
+        addr = addr.byte_sub(KERNEL_STACK_SIZE);
+        addr.write_bytes(0x55, 16);
+    }
+
+    pub unsafe fn check_guard_bits(mut addr: *mut u8) -> bool {
+        addr = addr.byte_sub(KERNEL_STACK_SIZE);
+        for i in 0..16 {
+            if addr.byte_add(i).read() != 0x55 {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 pub fn create_idle_process() -> Box<Process> {
