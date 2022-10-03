@@ -40,7 +40,7 @@ define_early_init!(init_sched);
 
 fn cpu_clock_handler() {
     yield_();
-    reset_clock(1000);
+    reset_clock(10);
 }
 
 pub extern "C" fn init_cpu_clock_handler() {

@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use core::sync::atomic::AtomicUsize;
-use crate::{dsb_sy, get_cpu_id, println};
+use crate::{dsb_sy, println};
 use crate::aarch64::mmu::PAGE_SIZE;
 use crate::kernel::mem::{ALLOC_PAGE_CNT, kfree};
 use rand::prelude::*;
@@ -24,7 +24,7 @@ pub fn sync(stage: usize) {
     dsb_sy();
 }
 
-#[test_case]
+// #[test_case]
 pub fn alloc_test() {
     unsafe {
         let mut rng = SmallRng::seed_from_u64(0xdeadbeef);
