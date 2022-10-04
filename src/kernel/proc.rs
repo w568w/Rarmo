@@ -209,7 +209,10 @@ pub fn wait() -> Option<(usize, usize)> {
         return None;
     }
     // Wait for a child to exit.
-    let _ = proc.child_exit.get_or_wait();
+    let child_exited = proc.child_exit.get_or_wait();
+    if !child_exited {
+        return None;
+    }
 
     let lock = PROC_LOCK.lock();
     let child = proc.first_child.unwrap();
