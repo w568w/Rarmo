@@ -5,7 +5,7 @@ use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::{get_kernel_stack_bottom, kernel_entry, KERNEL_STACK_SIZE};
 use crate::kernel::mem::{kalloc_page, kfree_page};
-use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_dead};
+use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_zombie_no_lock};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
@@ -132,8 +132,8 @@ impl Process {
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(root_proc());
-                if is_dead(child) {
-                    root_proc().child_exit.post();
+                if is_zombie_no_lock(child) {
+                    root_proc().child_exit.post_no_lock();
                 }
             }
             root_proc().attach_children(first_child);
@@ -161,7 +161,7 @@ impl Process {
         }
     }
 
-    pub fn killable(&self) -> bool {
+    pub fn can_be_freed(&self) -> bool {
         !self.idle && !self.killed && self.pid != root_proc().pid
     }
 }
@@ -186,18 +186,17 @@ pub fn exit(code: usize) -> ! {
     let proc = thisproc();
     proc.exit_code = code;
     let proc_lock = PROC_LOCK.lock();
-    // Set the kill flag.
-    proc.killed = true;
+
+    // Post should be done after acquiring the lock.
+    let lock = acquire_sched_lock();
     // Transfer all children to the root process.
     proc.transfer_all_children_to_root();
     // Notify the parent that it is exiting.
     if let Some(parent) = proc.parent {
-        unsafe { (*parent).child_exit.post() };
+        unsafe { (*parent).child_exit.post_no_lock() };
     }
-
-    // This process is a zombie, and will be cleaned up by the parent's wait().
-    let lock = acquire_sched_lock();
     drop(proc_lock);
+    // This process is a zombie, and will be cleaned up by the parent's wait().
     sched(lock, ProcessState::Zombie);
 
     panic!("Zombie process should not be scheduled");
@@ -218,11 +217,13 @@ pub fn wait() -> Option<(usize, usize)> {
     let child = proc.first_child.unwrap();
     let child = unsafe { &mut *child };
     for x in child.link().iter::<Process>(false) {
-        if is_dead(x) {
+        if is_zombie(x) {
             let exit_code = x.exit_code;
             let pid = x.pid;
+            // Set the kill flag.
+            proc.killed = true;
             // Free stack and context.
-            if x.killable() {
+            if x.can_be_freed() {
                 kfree_page(unsafe { x.kernel_stack.byte_sub(PAGE_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
                 x.kernel_context = ptr::null_mut();
                 x.user_context = ptr::null_mut();

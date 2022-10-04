@@ -4,7 +4,7 @@ use spin::Mutex;
 use crate::common::list::{ListLink, ListNode};
 use crate::kernel::proc::Process;
 use crate::kernel::proc::ProcessState::Sleeping;
-use crate::kernel::sched::{acquire_sched_lock, activate, sched, thisproc};
+use crate::kernel::sched::{acquire_sched_lock, activate, activate_no_lock, sched, thisproc};
 
 pub struct Semaphore {
     lock: Mutex<()>,
@@ -85,6 +85,14 @@ impl Semaphore {
         }
     }
     pub fn post(&mut self) {
+        self._post(false)
+    }
+
+    pub fn post_no_lock(&mut self) {
+        self._post(true)
+    }
+
+    fn _post(&mut self, has_lock: bool) {
         let _lock = self.lock.lock();
         self.value += 1;
         if self.value <= 0 {
@@ -93,7 +101,12 @@ impl Semaphore {
             let wait: &mut WaitData = self.sleep_list.prev().unwrap();
             wait.up = true;
             wait.link().detach();
-            activate(unsafe { &mut *(wait.proc) });
+            let proc = unsafe { &mut *wait.proc };
+            if has_lock {
+                activate_no_lock(proc);
+            } else {
+                activate(proc);
+            }
         }
     }
 }

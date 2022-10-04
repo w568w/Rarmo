@@ -89,11 +89,16 @@ fn get_cpu_sched() -> &'static mut Sched {
 }
 
 #[inline(always)]
-pub fn is_dead(proc: &Process) -> bool {
+pub fn is_zombie(proc: &Process) -> bool {
     let lock = acquire_sched_lock();
-    let ret = matches!(proc.state, ProcessState::Zombie) || proc.killed;
+    let ret = matches!(proc.state, ProcessState::Zombie);
     release_sched_lock(lock);
     ret
+}
+
+#[inline(always)]
+pub fn is_zombie_no_lock(proc: &Process) -> bool {
+    matches!(proc.state, ProcessState::Zombie)
 }
 
 pub fn try_thisproc() -> Option<&'static mut Process> {
@@ -105,8 +110,17 @@ pub fn thisproc() -> &'static mut Process {
     try_thisproc().unwrap()
 }
 
+pub fn activate_no_lock(proc: &mut Process) {
+    _activate(proc);
+}
+
 pub fn activate(proc: &mut Process) {
     let lock = acquire_sched_lock();
+    _activate(proc);
+    release_sched_lock(lock);
+}
+
+fn _activate(proc: &mut Process) {
     match proc.state {
         ProcessState::Unused | ProcessState::Sleeping => {
             update_proc_state(proc, ProcessState::Runnable);
@@ -116,7 +130,6 @@ pub fn activate(proc: &mut Process) {
             panic!("activate zombie process");
         }
     }
-    release_sched_lock(lock);
 }
 
 pub fn acquire_sched_lock<'a>() -> MutexGuard<'a, ()> {
