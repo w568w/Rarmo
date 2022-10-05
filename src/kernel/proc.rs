@@ -99,12 +99,15 @@ impl Process {
 
     // All functions below do not acquire the lock. You MUST lock the process tree before calling them!
 
+    pub fn first_child(&self) -> Option<&mut Process> {
+        unsafe { self.first_child.map(|p| &mut *p) }
+    }
+
     // Attach a new child to the process.
     // It will also set the child's parent to this process.
     pub fn attach_child(&mut self, child: &mut Process) {
         child.parent = Some(self);
-        if let Some(first_child) = self.first_child {
-            let first_child = unsafe { &mut *first_child };
+        if let Some(first_child) = self.first_child() {
             first_child.ptnode.insert_at_first(child);
         } else {
             self.first_child = Some(child);
@@ -114,8 +117,7 @@ impl Process {
     // This function is private, and should only be called when proc tree being locked.
     // It does not change the `parent` of each child, you need to do it yourself.
     fn attach_children(&mut self, first_child: &mut Process) {
-        if let Some(my_first_child) = self.first_child {
-            let my_first_child = unsafe { &mut *my_first_child };
+        if let Some(my_first_child) = self.first_child() {
             my_first_child.ptnode.merge(first_child.link());
         } else {
             self.first_child = Some(first_child);
@@ -127,8 +129,7 @@ impl Process {
         if self.pid == root_proc().pid {
             return;
         }
-        if let Some(first_child) = self.first_child {
-            let first_child = unsafe { &mut *first_child };
+        if let Some(first_child) = self.first_child() {
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(root_proc());
@@ -143,8 +144,7 @@ impl Process {
 
     pub fn detach_child(&mut self, child: &mut Process) {
         child.parent = None;
-        if let Some(first_child) = self.first_child {
-            let first_child = unsafe { &mut *first_child };
+        if let Some(first_child) = self.first_child() {
             if first_child.link().is_single() {
                 // If the first child is the only child, we can just set the first child to `None`.
                 self.first_child = None;
@@ -214,8 +214,7 @@ pub fn wait() -> Option<(usize, usize)> {
     }
 
     let lock = PROC_LOCK.lock();
-    let child = proc.first_child.unwrap();
-    let child = unsafe { &mut *child };
+    let child = proc.first_child().unwrap();
     for x in child.link().iter::<Process>(false) {
         if is_zombie(x) {
             let exit_code = x.exit_code;
@@ -242,7 +241,7 @@ pub fn wait() -> Option<(usize, usize)> {
 // Create a new process.
 // It will allocate stack and pid for `p`, and fill default fields.
 // If the caller is a running process, it will also attach `p` to the caller.
-pub unsafe fn init_proc(p: &mut Process) {
+unsafe fn init_proc(p: &mut Process) {
     let mut proc = &mut *p;
     proc.fill_default_fields();
     let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
@@ -262,8 +261,8 @@ pub fn create_proc() -> &'static mut Process {
     let mut p: Box<Process> = Default::default();
     unsafe {
         init_proc(p.as_mut());
+        &mut *Box::into_raw(p)
     }
-    unsafe { &mut *Box::into_raw(p) }
 }
 
 // Start a process.

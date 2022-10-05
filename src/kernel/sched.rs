@@ -19,16 +19,14 @@ pub struct Sched {
 
 static mut RUN_QUEUE: MaybeUninit<RbTree<SchInfo>> = MaybeUninit::uninit();
 
-pub extern "C" fn init_run_queue() {
-    unsafe {
-        RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| {
-            if a.vruntime != b.vruntime {
-                a.vruntime < b.vruntime
-            } else {
-                Process::get_parent::<Process>(a).pid < Process::get_parent::<Process>(b).pid
-            }
-        }));
-    }
+pub unsafe extern "C" fn init_run_queue() {
+    RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| {
+        if a.vruntime != b.vruntime {
+            a.vruntime < b.vruntime
+        } else {
+            Process::get_parent::<Process>(a).pid < Process::get_parent::<Process>(b).pid
+        }
+    }));
 }
 define_early_init!(init_run_queue);
 
@@ -176,14 +174,13 @@ const SCHED_MEDIUM_NICE: usize = 20;
 const SCHED_MIN_GRANULARITY_US: u64 = 1000;
 
 // Choose the next process to run.
-fn pick_next() -> &'static mut Process {
+fn pick_next() -> *mut Process {
     let sch_info = unsafe { RUN_QUEUE.assume_init_mut().minimum() };
     if let Some(sch_info) = sch_info {
-        let proc = Process::get_parent::<Process>(sch_info);
+        let proc = Process::get_parent(sch_info);
         proc
     } else {
-        let idle_proc = get_cpu_sched().idle_proc.unwrap();
-        unsafe { &mut *idle_proc }
+        get_cpu_sched().idle_proc.unwrap()
     }
 }
 

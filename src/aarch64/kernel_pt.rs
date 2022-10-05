@@ -1,14 +1,14 @@
 #![allow(non_upper_case_globals)]
 
-use core::mem;
 use super::mmu::*;
 use aligned::*;
+use crate::common::StaticSafe;
 
 // `Aligned` tells the compiler that the memory should be aligned to the specified boundary.
 // `#[no_mangle]` tells the compiler not to mangle the name of the variable.
 #[no_mangle]
-pub static _kernel_pt_level3: Aligned<APageSize, RawPageTable> =
-    Aligned([0x0 | PTE_KERNEL_DATA, 0x200000 | PTE_KERNEL_DATA, 0x400000 | PTE_KERNEL_DATA,
+pub static _kernel_pt_level3: StaticSafe<Aligned<APageSize, RawPageTable>> =
+    StaticSafe(Aligned([0x0 | PTE_KERNEL_DATA, 0x200000 | PTE_KERNEL_DATA, 0x400000 | PTE_KERNEL_DATA,
         0x600000 | PTE_KERNEL_DATA, 0x800000 | PTE_KERNEL_DATA, 0xa00000 | PTE_KERNEL_DATA,
         0xc00000 | PTE_KERNEL_DATA, 0xe00000 | PTE_KERNEL_DATA, 0x1000000 | PTE_KERNEL_DATA,
         0x1200000 | PTE_KERNEL_DATA, 0x1400000 | PTE_KERNEL_DATA, 0x1600000 | PTE_KERNEL_DATA,
@@ -178,7 +178,7 @@ pub static _kernel_pt_level3: Aligned<APageSize, RawPageTable> =
         0x3ea00000 | PTE_KERNEL_DATA, 0x3ec00000 | PTE_KERNEL_DATA, 0x3ee00000 | PTE_KERNEL_DATA,
         0x3f000000 | PTE_KERNEL_DEVICE, 0x3f200000 | PTE_KERNEL_DEVICE, 0x3f400000 | PTE_KERNEL_DEVICE,
         0x3f600000 | PTE_KERNEL_DEVICE, 0x3f800000 | PTE_KERNEL_DEVICE, 0x3fa00000 | PTE_KERNEL_DEVICE,
-        0x3fc00000 | PTE_KERNEL_DEVICE, 0x3fe00000 | PTE_KERNEL_DEVICE]);
+        0x3fc00000 | PTE_KERNEL_DEVICE, 0x3fe00000 | PTE_KERNEL_DEVICE]));
 
 // Oh, what a mess!
 // Be patient, I'll explain them below.
@@ -189,41 +189,27 @@ pub static _kernel_pt_level3: Aligned<APageSize, RawPageTable> =
 // Please be aware that the size of `*const u8` itself, like any other pointer type, is 8 bytes on aarch64.
 
 #[no_mangle]
-pub static mut _kernel_pt_level2: Aligned<APageSize, PageTable> = Aligned({
+pub static _kernel_pt_level2: StaticSafe<Aligned<APageSize, PageTable>> = StaticSafe(Aligned({
     // We are using a const fn block here to initialize the array, so that we do not need to write a lot of zeros, i.e.:
     // array: T = [1,2,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,...,0];
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
     tmp[0] =
-        unsafe {
-            _kernel2physical(
-                // `mem::transmute<From,To>` is an unsafe function that converts a value of type `From` to a value of type `To`,
-                // in a very brute-force way. It never checks whether the conversion is valid.
-                // It is, emmm, incredibly unsafe, so we need to be very careful when using it.
-                // But do not worry, we are using it in a safe way here.
-                //
-                // It is used here to convert a pointer of this very-very-long-named type, `&_kernel_pt_level3`, to a pointer of `u8`.
-                mem::transmute::<&Aligned<APageSize, [u64; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level3))
-                // Then, we add a offset. Calling this method is equivalent to calling `pointer + PTE_TABLE`.
-                // But it is a const fn, so we can use it in a const fn block.
-                //
-                // Note: at the compile time, you can never know the exact value of a pointer1
-                .wrapping_offset(PTE_TABLE as isize)
-        };
+        _kernel2physical(
+            &_kernel_pt_level3 as *const _ as *const u8)
+            .wrapping_offset(PTE_TABLE as isize);
     tmp[1] = (0x40000000 | PTE_KERNEL_DEVICE) as *const u8;
     tmp[3] = (0xC0000000 | PTE_KERNEL_DEVICE) as *const u8;
     tmp
-});
+}));
 
 #[no_mangle]
-pub static mut kernel_pt: Aligned<APageSize, PageTable> = Aligned({
+pub static kernel_pt: StaticSafe<Aligned<APageSize, PageTable>> = StaticSafe(Aligned({
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
     tmp[0] =
-        unsafe {
-            _kernel2physical(mem::transmute::<&Aligned<APageSize, [*const u8; N_PTE_PER_TABLE]>, *const u8>(&_kernel_pt_level2))
-                .wrapping_offset(PTE_TABLE as isize)
-        };
+        _kernel2physical(&_kernel_pt_level2 as *const _ as *const u8)
+            .wrapping_offset(PTE_TABLE as isize);
     tmp
-});
+}));
 
 #[no_mangle]
-pub static invalid_pt: Aligned<APageSize, RawPageTable> = Aligned([0; N_PTE_PER_TABLE]);
+pub static invalid_pt: StaticSafe<Aligned<APageSize, RawPageTable>> = StaticSafe(Aligned([0; N_PTE_PER_TABLE]));

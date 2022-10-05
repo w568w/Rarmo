@@ -62,7 +62,7 @@ fn start_test(tests: &[&dyn Fn()]) {
 fn panic(_info: &PanicInfo) -> ! {
     let lock = PANIC_LOCK.lock();
     // Force to unlock the write lock on console.
-    unsafe { CONSOLE.force_write_unlock() }
+    unsafe { CONSOLE.force_write_unlock() };
     PANIC_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
     println!("\n\nKernel panic: {:?}", _info);
     drop(lock);

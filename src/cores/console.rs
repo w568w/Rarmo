@@ -15,7 +15,7 @@ pub fn _print(args: fmt::Arguments) {
     }
 }
 
-pub unsafe extern "C" fn init_console() {
+pub extern "C" fn init_console() {
     let mut binding = CONSOLE.write();
     *binding = Some(ConsoleContext::new(UartDevice));
 }
