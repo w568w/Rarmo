@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;
@@ -22,6 +23,7 @@ global_asm!(include_str!("exception_vector.asm"));
 #[no_mangle]
 pub extern "C" fn trap_global_handler(context: *mut UserContext) {
     thisproc().user_context = context;
+    let context = unsafe { &mut *context };
     let esr = get_esr_el1();
     let exception_class = esr >> ESR_EC_SHIFT;
     let ir = esr & ESR_IR_MASK;
@@ -39,16 +41,16 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("SVC64 exception");
         }
         ESR_EC_IABORT_EL0 => {
-            panic!("IABORT_EL0 exception, at {:x}", unsafe { (*context).elr_el1 });
+            panic!("IABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_IABORT_EL1 => {
-            panic!("IABORT_EL1 exception, at {:x}", unsafe { (*context).elr_el1 });
+            panic!("IABORT_EL1 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_DABORT_EL0 => {
-            panic!("DABORT_EL0 exception, at {:x}", unsafe { (*context).elr_el1 });
+            panic!("DABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_DABORT_EL1 => {
-            panic!("DABORT_EL1 exception, at {:x}", unsafe { (*context).elr_el1 });
+            panic!("DABORT_EL1 exception, at {:x}", context.elr_el1);
         }
         _ => {
             panic!("Unknown exception");
