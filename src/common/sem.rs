@@ -47,6 +47,7 @@ impl Semaphore {
     }
 
     pub fn get_or_wait(&mut self) -> bool {
+        let sched_lock = acquire_sched_lock();
         let lock = self.lock.lock();
         self.value -= 1;
         if self.value >= 0 {
@@ -58,7 +59,7 @@ impl Semaphore {
         wait_data.sibling.init();
         self.sleep_list.insert_at_first(wait_data.as_mut());
         // Lock for the scheduler, and tell it that the process is going to sleep.
-        let sched_lock = acquire_sched_lock();
+
         drop(lock);
         sched(sched_lock, Sleeping);
 
@@ -101,6 +102,7 @@ impl Semaphore {
             let wait: &mut WaitData = self.sleep_list.prev().unwrap();
             wait.up = true;
             wait.link().detach();
+            drop(_lock);
             let proc = unsafe { &mut *wait.proc };
             if has_lock {
                 activate_no_lock(proc);

@@ -32,7 +32,7 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
     match exception_class {
         ESR_EC_UNKNOWN => {
             if ir != 0 {
-                panic!("Unknown exception class: {:x}", esr);
+                panic!("Unknown exception class: {:x}, at {:x}", esr, context.elr_el1);
             } else {
                 interrupt_global_handler();
             }
