@@ -40,7 +40,10 @@ const fn pid_generator(fill_count: usize, i: usize) -> usize {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct UserContext {
+    pub fp: u64,
+    pub lr: u64,
     pub spsr_el1: u64,
     pub elr_el1: u64,
     // q0-q31
@@ -50,6 +53,7 @@ pub struct UserContext {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct KernelContext {
     // q0-q31
     pub q: [f64; 64],
@@ -222,12 +226,10 @@ pub fn wait() -> Option<(usize, usize)> {
             // Set the kill flag.
             proc.killed = true;
             // Free stack and context.
-            if x.can_be_freed() {
-                kfree_page(unsafe { x.kernel_stack.byte_sub(PAGE_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
-                x.kernel_context = ptr::null_mut();
-                x.user_context = ptr::null_mut();
-            }
             proc.detach_child(x);
+            if x.can_be_freed() {
+                // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
+            }
             PID_POOL.free(pid);
             // Scheduler has removed it and parent has also detached it, so we can free it.
             let _proc_to_be_dropped = unsafe { Box::from_raw(x) };

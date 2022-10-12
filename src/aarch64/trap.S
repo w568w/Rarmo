@@ -47,6 +47,7 @@ mrs x0, SPSR_EL1
 mrs x1, ELR_EL1
 pushp(x0, x1)
 
+pushp(x29, x30)
 // Save the current stack pointer.
 mov x0, sp
 
@@ -57,6 +58,8 @@ bl trap_global_handler
 .global trap_return
 trap_return:
 // Restore the context from stack.
+popp(x29, x30)
+
 popp(x0, x1)
 msr SPSR_EL1, x0
 msr ELR_EL1, x1

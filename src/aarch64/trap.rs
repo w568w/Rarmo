@@ -5,6 +5,7 @@ use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;
 use crate::kernel::sched::thisproc;
 use core::arch::global_asm;
+use crate::{println, set_cpu_off};
 
 const ESR_EC_SHIFT: i8 = 26;
 const ESR_ISS_MASK: u64 = 0xFFFFFF;
@@ -44,13 +45,17 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("IABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_IABORT_EL1 => {
-            panic!("IABORT_EL1 exception, at {:x}", context.elr_el1);
+            println!("IABORT_EL1 exception, at {:x}", context.elr_el1);
+            set_cpu_off();
+            stop_cpu();
         }
         ESR_EC_DABORT_EL0 => {
             panic!("DABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_DABORT_EL1 => {
-            panic!("DABORT_EL1 exception, at {:x}", context.elr_el1);
+            println!("DABORT_EL1 exception, at {:x}", context.elr_el1);
+            set_cpu_off();
+            stop_cpu();
         }
         _ => {
             panic!("Unknown exception");
