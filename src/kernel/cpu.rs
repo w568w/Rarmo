@@ -1,19 +1,36 @@
 use core::mem::MaybeUninit;
 
 use alloc::boxed::Box;
+use field_offset::offset_of;
 
-use crate::aarch64::intrinsic::{disable_trap, reset_esr_el1, set_ttbr0_el1, set_vbar_el1};
+use crate::aarch64::intrinsic::{disable_trap, get_time_ms, get_time_us, reset_esr_el1, set_ttbr0_el1, set_vbar_el1};
 use crate::aarch64::kernel_pt::invalid_pt;
 use crate::aarch64::mmu::kernel2physical;
 use crate::driver::clock::{init_clock, set_clock_handler, reset_clock};
 use crate::kernel::proc::create_idle_process;
-use crate::kernel::sched::{start_idle_proc, yield_,Sched};
+use crate::kernel::sched::{start_idle_proc, yield_, Sched};
 use crate::{define_early_init, get_cpu_id};
+use crate::common::list::ListNode;
+use crate::common::tree::{RbTree, RbTreeLink};
 
 const CPU_NUM: usize = 4;
 
+pub struct Timer {
+    triggered: bool,
+    elapsed: u64,
+    key: u64,
+    link: RbTreeLink,
+    handler: fn(&mut Timer),
+    data: u64,
+}
+
+impl ListNode<RbTreeLink> for Timer {
+    fn get_link_offset() -> usize { offset_of!(Timer => link).get_byte_offset() }
+}
+
 pub struct CPU {
     pub online: bool,
+    pub timers: RbTree<Timer>,
     pub sched: Sched,
 }
 
@@ -24,6 +41,7 @@ static mut CPUS: [CPU; CPU_NUM] = {
         cpus[i] = MaybeUninit::new(CPU {
             online: false,
             sched: Sched::uninit(),
+            timers: RbTree::new(timer_cmp),
         });
         i += 1;
     }
@@ -38,9 +56,54 @@ pub unsafe extern "C" fn init_sched() {
 
 define_early_init!(init_sched);
 
+const fn timer_cmp(a: &mut Timer, b: &mut Timer) -> bool {
+    a.key < b.key
+}
+
+fn refresh_clock_by_timer() {
+    match get_cpu_info().timers.minimum() {
+        None => {
+            reset_clock(1000);
+        }
+        Some(timer) => {
+            let cur = get_time_ms();
+            if timer.key < cur {
+                reset_clock(0);
+            } else {
+                reset_clock(timer.key - cur);
+            }
+        }
+    }
+}
+
 fn cpu_clock_handler() {
-    yield_();
-    reset_clock(10);
+    reset_clock(1000);
+    loop {
+        let node = get_cpu_info().timers.minimum();
+        if node.is_none() {
+            break;
+        }
+        let timer = node.unwrap();
+        if get_time_ms() < timer.key {
+            break;
+        }
+        cancel_cpu_timer(timer);
+        timer.triggered = true;
+        (timer.handler)(timer);
+    }
+}
+
+fn add_cpu_timer(timer: &mut Timer) {
+    timer.triggered = false;
+    timer.key = get_time_ms() + timer.elapsed;
+    get_cpu_info().timers.insert(timer);
+    refresh_clock_by_timer();
+}
+
+fn cancel_cpu_timer(timer: &mut Timer) {
+    assert!(!timer.triggered);
+    get_cpu_info().timers.delete(timer);
+    refresh_clock_by_timer();
 }
 
 pub extern "C" fn init_cpu_clock_handler() {
@@ -49,14 +112,16 @@ pub extern "C" fn init_cpu_clock_handler() {
 
 define_early_init!(init_cpu_clock_handler);
 
-extern "C" {
-    pub fn exception_vector();
-}
+
 
 // Get current CPU's Info.
 // It is safe because it only returns a reference to the *current* CPU's, not others'.
 pub fn get_cpu_info() -> &'static mut CPU {
     unsafe { &mut CPUS[get_cpu_id()] }
+}
+
+extern "C" {
+    pub fn exception_vector();
 }
 
 // Set the cpu on.

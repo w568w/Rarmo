@@ -125,7 +125,7 @@ fn _activate(proc: &mut Process) {
         }
         ProcessState::Runnable | ProcessState::Running => {}
         ProcessState::Zombie => {
-            panic!("activate zombie process");
+            // We will do nothing here.
         }
     }
 }
@@ -228,6 +228,9 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
 
     let this = thisproc();
     assert!(matches!(this.state, ProcessState::Running));
+    if this.killed && new_state != ProcessState::Zombie {
+        return;
+    }
     stop_tick_and_update_vruntime(this);
     if !this.idle {
         assert!(unsafe { check_guard_bits(this.kernel_stack) }, "Proc {} has corrupted its kernel stack", this.pid);

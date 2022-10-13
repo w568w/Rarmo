@@ -189,7 +189,7 @@ pub static _kernel_pt_level3: StaticSafe<Aligned<APageSize, RawPageTable>> =
 // Please be aware that the size of `*const u8` itself, like any other pointer type, is 8 bytes on aarch64.
 
 #[no_mangle]
-pub static _kernel_pt_level2: StaticSafe<Aligned<APageSize, PageTable>> = StaticSafe(Aligned({
+pub static _kernel_pt_level2: StaticSafe<Aligned<APageSize, PtrPageTable>> = StaticSafe(Aligned({
     // We are using a const fn block here to initialize the array, so that we do not need to write a lot of zeros, i.e.:
     // array: T = [1,2,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,...,0];
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
@@ -203,7 +203,7 @@ pub static _kernel_pt_level2: StaticSafe<Aligned<APageSize, PageTable>> = Static
 }));
 
 #[no_mangle]
-pub static kernel_pt: StaticSafe<Aligned<APageSize, PageTable>> = StaticSafe(Aligned({
+pub static kernel_pt: StaticSafe<Aligned<APageSize, PtrPageTable>> = StaticSafe(Aligned({
     let mut tmp = [0 as *const u8; N_PTE_PER_TABLE];
     tmp[0] =
         _kernel2physical(&_kernel_pt_level2 as *const _ as *const u8)

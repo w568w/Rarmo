@@ -39,7 +39,7 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             }
         }
         ESR_EC_SVC64 => {
-            panic!("SVC64 exception");
+            // TODO: implement syscall
         }
         ESR_EC_IABORT_EL0 => {
             panic!("IABORT_EL0 exception, at {:x}", context.elr_el1);
@@ -61,6 +61,7 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("Unknown exception");
         }
     }
+    // TODO: stop killed process while returning to user space
 }
 
 #[no_mangle]

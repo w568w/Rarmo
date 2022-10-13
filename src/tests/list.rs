@@ -40,7 +40,7 @@ pub fn test_list() {
     }
     list_head.iter::<Data>(true).filter_inplace(|_| {
         false
-    }, None);
+    }, |_| false);
     for item in list_head.iter::<Data>(true) {
         println!("{}", item.val);
     }

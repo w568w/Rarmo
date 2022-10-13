@@ -12,6 +12,7 @@ use core::ptr;
 use field_offset::offset_of;
 use spin::Mutex;
 use crate::common::pool::LockedArrayPool;
+use crate::cores::virtual_memory::{PageTableDirectory, VirtualMemoryPageTable};
 use crate::kernel::proc::guard::put_guard_bits;
 
 static mut ROOT_PROC: MaybeUninit<Process> = MaybeUninit::uninit();
@@ -75,6 +76,7 @@ pub struct Process {
     pub ptnode: ListLink,
     pub parent: Option<*mut Process>,
     pub sch_info: SchInfo,
+    pub pgdir: PageTableDirectory,
     pub kernel_stack: *mut u8,
     pub user_context: *mut UserContext,
     pub kernel_context: *mut KernelContext,
@@ -96,6 +98,7 @@ impl Process {
         self.parent = None;
         self.sch_info = SchInfo::uninit();
         self.sch_info.init();
+        self.pgdir = PageTableDirectory::uninit();
         self.kernel_stack = ptr::null_mut();
         self.user_context = ptr::null_mut();
         self.kernel_context = ptr::null_mut();
@@ -228,6 +231,8 @@ pub fn wait() -> Option<(usize, usize)> {
             // Free stack and context.
             proc.detach_child(x);
             if x.can_be_freed() {
+                // todo
+                // x.pgdir.free();
                 // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
             }
             PID_POOL.free(pid);
@@ -240,12 +245,19 @@ pub fn wait() -> Option<(usize, usize)> {
     panic!("child_exit is posted, but no zombie child is found!");
 }
 
+pub fn kill(pid: usize) -> bool {
+    // Set the killed flag of the proc to true and return 0.
+    // Return -1 if the pid is invalid (proc not found).
+    todo!()
+}
+
 // Create a new process.
 // It will allocate stack and pid for `p`, and fill default fields.
 // If the caller is a running process, it will also attach `p` to the caller.
 unsafe fn init_proc(p: &mut Process) {
     let mut proc = &mut *p;
     proc.fill_default_fields();
+    proc.pgdir.init();
     let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
     proc.kernel_stack = stack_top.byte_add(KERNEL_STACK_SIZE);
     put_guard_bits(proc.kernel_stack);

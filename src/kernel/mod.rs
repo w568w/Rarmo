@@ -10,6 +10,7 @@ pub mod rust_allocator;
 pub mod proc;
 pub mod cpu;
 pub mod sched;
+pub mod syscall;
 
 pub static PANIC_FLAG: AtomicBool = AtomicBool::new(false);
 pub const KERNEL_STACK_SIZE: usize = 65536;

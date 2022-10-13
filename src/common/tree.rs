@@ -206,7 +206,7 @@ impl<T: ListNode<RbTreeLink> + 'static> core::fmt::Display for RbTree<T> {
 }
 
 impl<T: ListNode<RbTreeLink> + 'static> RbTree<T> {
-    pub fn new(cmp: fn(&mut T, &mut T) -> bool) -> Self {
+    pub const fn new(cmp: fn(&mut T, &mut T) -> bool) -> Self {
         Self {
             root: ptr::null_mut(),
             size: 0,

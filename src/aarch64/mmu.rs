@@ -40,7 +40,7 @@ pub const PTE_USER_DATA: u64 = PTE_USER | PTE_NORMAL | PTE_PAGE;
 
 pub const N_PTE_PER_TABLE: usize = 512;
 
-pub type PageTable = [*const u8; N_PTE_PER_TABLE];
+pub type PtrPageTable = [*const u8; N_PTE_PER_TABLE];
 
 // Another type of page table, which is used to initialize a page table with `u64`.
 pub type RawPageTable = [u64; N_PTE_PER_TABLE];
@@ -48,6 +48,8 @@ pub type RawPageTable = [u64; N_PTE_PER_TABLE];
 pub const KSPACE_MASK: usize = 0xffff000000000000;
 
 pub const PHYSICAL_TOP: u64 = 0x3f000000;
+
+// todo: va_parts
 
 pub const fn kernel2physical(addr: u64) -> u64 {
     addr - KSPACE_MASK as u64

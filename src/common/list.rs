@@ -48,6 +48,10 @@ impl ListLink {
         self.next = node_link;
     }
 
+    pub fn insert_at_last<T: ListNode<ListLink>>(&mut self, node: *mut T) {
+        unsafe { (*self.prev).insert_at_first(node) };
+    }
+
     pub fn merge(&mut self, other: &mut ListLink) {
         let other_next = other.next;
         other.next = self.next;
@@ -89,10 +93,10 @@ impl ListLink {
 
     pub fn detach(&mut self) {
         unsafe {
-            if !self.prev.is_null(){
+            if !self.prev.is_null() {
                 (*(self.prev)).next = self.next;
             }
-            if !self.next.is_null(){
+            if !self.next.is_null() {
                 (*(self.next)).prev = self.prev;
             }
         }
@@ -148,13 +152,15 @@ impl<Container: ListNode<ListLink> + 'static> Iterator for LinkedListIterationIn
 
 pub trait InplaceFilter {
     type Item;
-    fn filter_inplace(self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>);
+    fn filter_inplace<F1, F2>(self, f: F1, after_detach: F2)
+        where F1: FnMut(Self::Item) -> bool, F2: FnMut(Self::Item) -> bool;
 }
 
 impl<T: ListNode<ListLink> + 'static> InplaceFilter for LinkedListIterationInfo<T> {
     type Item = &'static mut T;
 
-    fn filter_inplace(mut self, f: fn(Self::Item) -> bool, after_detach: Option<fn(Self::Item)>) {
+    fn filter_inplace<F1, F2>(mut self, mut f: F1, mut after_detach: F2)
+        where F1: FnMut(Self::Item) -> bool, F2: FnMut(Self::Item) -> bool {
         loop {
             // If we have walked over `head` again, we should stop
             if self.head == self.cur && self.has_walked_head {
@@ -178,8 +184,8 @@ impl<T: ListNode<ListLink> + 'static> InplaceFilter for LinkedListIterationInfo<
                     panic!("Trying to remove the last element of the list!");
                 }
                 unsafe { (*(self.cur)).detach() };
-                if let Some(after_detach) = after_detach {
-                    after_detach(T::container(self.cur));
+                if after_detach(T::container(self.cur)) {
+                    return;
                 }
             }
             self.cur = next;
