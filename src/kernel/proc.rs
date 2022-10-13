@@ -4,7 +4,7 @@ use crate::common::list::{ListLink, ListNode};
 use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::{get_kernel_stack_bottom, kernel_entry, KERNEL_STACK_SIZE};
-use crate::kernel::mem::{kalloc_page, kfree_page};
+use crate::kernel::mem::kalloc_page;
 use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_zombie_no_lock};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
@@ -191,8 +191,6 @@ pub fn exit(code: usize) -> ! {
     proc.exit_code = code;
     let proc_lock = PROC_LOCK.lock();
 
-    // Post should be done after acquiring the lock.
-    let lock = acquire_sched_lock();
     // Transfer all children to the root process.
     proc.transfer_all_children_to_root();
     // Notify the parent that it is exiting.
@@ -200,6 +198,8 @@ pub fn exit(code: usize) -> ! {
         unsafe { (*parent).child_exit.post_no_lock() };
     }
     drop(proc_lock);
+
+    let lock = acquire_sched_lock();
     // This process is a zombie, and will be cleaned up by the parent's wait().
     sched(lock, ProcessState::Zombie);
 
