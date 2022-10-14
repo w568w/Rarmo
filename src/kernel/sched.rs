@@ -191,7 +191,13 @@ const SCHED_MIN_GRANULARITY_US: u64 = 1000;
 fn pick_next() -> *mut Process {
     let sch_info = unsafe { RUN_QUEUE.assume_init_mut().minimum() };
     if let Some(sch_info) = sch_info {
-        let proc = Process::get_parent(sch_info);
+        let proc = Process::get_parent::<Process>(sch_info);
+        let this = thisproc();
+        if matches!(this.state,ProcessState::Runnable)
+            && proc.sch_info.vruntime + SCHED_MIN_GRANULARITY_US > this.sch_info.vruntime {
+            // If next process only has a little less time than current process, we don't need to switch.
+            return this;
+        }
         proc
     } else {
         get_cpu_sched().idle_proc.unwrap()
@@ -253,17 +259,9 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
         assert!(unsafe { check_guard_bits(this.kernel_stack) }, "Proc {} has corrupted its kernel stack", this.pid);
     }
     update_this_state(new_state);
-    let mut next: *mut Process = pick_next();
-
-    // todo: move this to a better place
-    if matches!(this.state,ProcessState::Runnable)
-        && unsafe { (*next).sch_info.vruntime } + SCHED_MIN_GRANULARITY_US > this.sch_info.vruntime {
-        // If next process only has a little less time than current process, we don't need to switch.
-        next = this;
-    }
-
-    let next = unsafe { &mut *next };
+    let next = pick_next();
     update_this_proc(next);
+    let next = unsafe { &mut *next };
     assert!(matches!(next.state, ProcessState::Runnable));
     update_proc_state(next, ProcessState::Running);
     start_tick(next);
