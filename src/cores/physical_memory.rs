@@ -149,37 +149,44 @@ impl BuddyPageAllocation {
             self.page_map[page_map_index + i] = order;
         }
     }
-
+    fn is_first_page_in_order(&self, page_addr: *mut BuddyPage, order: usize) -> bool {
+        let page_map_index = self.get_page_map_index(page_addr as *mut u8);
+        self.page_map[page_map_index] == order && (page_map_index == 0 || self.page_map[page_map_index - 1] != order)
+    }
     // Insert a page into the free list. Merge the page with its buddy if possible.
     fn insert_page(&mut self, page: &mut BuddyPage, order: usize) {
         page.link().init();
         let page_addr = page as *mut _ as *mut u8;
-        self.declare_page_free(page_addr, order);
+        self.declare_page_used(page_addr, 1 << order);
         self.free_list[order].insert_at_first(page);
         if order >= GF_ORDER - 1 {
+            self.declare_page_free(page_addr, order);
             return;
         }
         let prev_page_addr = unsafe { page_addr.byte_sub(PAGE_SIZE * (1 << order)) };
         let next_page_addr = unsafe { page_addr.byte_add(PAGE_SIZE * (1 << order)) };
         if prev_page_addr >= self.start {
             let prev_page = unsafe { &mut *(prev_page_addr as *mut BuddyPage) };
-            if self.page_map[self.get_page_map_index(prev_page_addr)] == order {
+            if self.is_first_page_in_order(prev_page, order) {
                 page.link().detach();
                 prev_page.link().detach();
+                self.declare_page_free(page_addr, order);
                 self.insert_page(prev_page, order + 1);
                 return;
             }
         }
 
         if next_page_addr < self.end {
-            if self.page_map[self.get_page_map_index(next_page_addr)] == order {
-                let next_page = unsafe { &mut *(next_page_addr as *mut BuddyPage) };
+            let next_page = unsafe { &mut *(next_page_addr as *mut BuddyPage) };
+            if self.is_first_page_in_order(next_page, order) {
                 next_page.link().detach();
                 page.link().detach();
+                self.declare_page_free(page_addr, order);
                 self.insert_page(page, order + 1);
                 return;
             }
         }
+        self.declare_page_free(page_addr, order);
     }
 
     // Split a page into two pages.
@@ -228,7 +235,11 @@ impl PhysicalMemoryTable for BuddyPageAllocation {
     }
 
     fn page_alloc(&mut self, num: usize) -> *mut u8 {
-        self.alloc_page(num).unwrap()
+        let addr = self.alloc_page(num).unwrap();
+        // if num > 1 {
+        //     println!("alloc {} pages at {:x}", num, addr as usize);
+        // }
+        addr
     }
 
     fn page_free(&mut self, page_addr: *mut u8, num: usize) {
@@ -236,5 +247,8 @@ impl PhysicalMemoryTable for BuddyPageAllocation {
         BuddyPageAllocation::iter_by_order(page_addr, num, |page, order| {
             self.insert_page(page, order);
         });
+        // if num > 1 {
+        //     println!("free {} pages at {:x}", num, page_addr as usize);
+        // }
     }
 }

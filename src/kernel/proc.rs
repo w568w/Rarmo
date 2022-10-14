@@ -4,8 +4,8 @@ use crate::common::list::{ListLink, ListNode};
 use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::{get_kernel_stack_bottom, kernel_entry, KERNEL_STACK_SIZE};
-use crate::kernel::mem::kalloc_page;
-use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_zombie_no_lock};
+use crate::kernel::mem::{kalloc_page, kfree_page};
+use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_zombie_no_lock, is_unused, is_unused_no_lock, activate_no_lock};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;
@@ -231,9 +231,9 @@ pub fn wait() -> Option<(usize, usize)> {
             // Free stack and context.
             proc.detach_child(x);
             if x.can_be_freed() {
-                // todo
                 x.pgdir.free();
-                // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
+                kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) },
+                           KERNEL_STACK_SIZE / PAGE_SIZE);
             }
             PID_POOL.free(pid);
             // Scheduler has removed it and parent has also detached it, so we can free it.
