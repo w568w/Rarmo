@@ -142,8 +142,8 @@ impl Process {
             // Merge the child list to the root process's child list.
             for child in first_child.link().iter::<Process>(false) {
                 child.parent = Some(root_proc());
-                if is_zombie_no_lock(child) {
-                    root_proc().child_exit.post_no_lock();
+                if is_zombie(child) {
+                    root_proc().child_exit.post();
                 }
             }
             root_proc().attach_children(first_child);
@@ -200,11 +200,11 @@ pub fn exit(code: isize) -> ! {
     proc.transfer_all_children_to_root();
     // Notify the parent that it is exiting.
     if let Some(parent) = proc.parent {
-        unsafe { (*parent).child_exit.post_no_lock() };
+        unsafe { (*parent).child_exit.post() };
     }
-    drop(proc_lock);
 
     let lock = acquire_sched_lock();
+    drop(proc_lock);
     // This process is a zombie, and will be cleaned up by the parent's wait().
     sched(lock, ProcessState::Zombie);
 
