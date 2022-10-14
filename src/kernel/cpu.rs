@@ -8,7 +8,7 @@ use crate::aarch64::kernel_pt::invalid_pt;
 use crate::aarch64::mmu::kernel2physical;
 use crate::driver::clock::{init_clock, set_clock_handler, reset_clock};
 use crate::kernel::proc::create_idle_process;
-use crate::kernel::sched::{start_idle_proc, Sched};
+use crate::kernel::sched::{start_idle_proc, Sched, preemptive_sched};
 use crate::{define_early_init, get_cpu_id};
 use crate::common::list::ListNode;
 use crate::common::tree::{RbTree, RbTreeLink};
@@ -26,6 +26,19 @@ pub struct Timer {
 
 impl ListNode<RbTreeLink> for Timer {
     fn get_link_offset() -> usize { offset_of!(Timer => link).get_byte_offset() }
+}
+
+impl Timer {
+    pub fn new(handler: fn(&mut Timer), data: u64, elapse_ms: u64) -> Self {
+        Self {
+            triggered: false,
+            elapsed: elapse_ms,
+            key: 0,
+            link: RbTreeLink::new(),
+            handler,
+            data,
+        }
+    }
 }
 
 pub struct CPU {
@@ -93,7 +106,7 @@ fn cpu_clock_handler() {
     }
 }
 
-fn add_cpu_timer(timer: &mut Timer) {
+pub fn add_cpu_timer(timer: &mut Timer) {
     timer.triggered = false;
     timer.key = get_time_ms() + timer.elapsed;
     get_cpu_info().timers.insert(timer);
@@ -138,6 +151,9 @@ pub fn set_cpu_on() {
     let idle_proc = Box::leak(create_idle_process());
     get_cpu_info().sched.idle_proc = Some(idle_proc);
     start_idle_proc();
+    // After initializing the IDLE process, the scheduler will be started.
+    let mut timer = Box::new(Timer::new(preemptive_sched, 0, 10));
+    add_cpu_timer(Box::leak(timer));
 }
 
 pub fn set_cpu_off() {

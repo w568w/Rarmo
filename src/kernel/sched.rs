@@ -3,12 +3,14 @@ use crate::{common::{
     Container,
 }, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}};
 use core::arch::global_asm;
+use core::assert_matches::assert_matches;
 use core::mem::MaybeUninit;
 use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
 use crate::aarch64::intrinsic::get_time_us;
 use crate::common::tree::{RbTree, RbTreeLink};
 use crate::cores::virtual_memory::VirtualMemoryPageTable;
+use crate::kernel::cpu::{add_cpu_timer, Timer};
 use crate::kernel::proc::guard::check_guard_bits;
 
 use super::cpu::get_cpu_info;
@@ -74,6 +76,11 @@ static SCHED_LOCK: Mutex<()> = Mutex::new(());
 global_asm!(include_str!("../aarch64/swtch.asm"));
 extern "C" {
     fn swtch(new: *mut KernelContext, old: *mut *mut KernelContext);
+}
+
+pub fn preemptive_sched(timer: &mut Timer) {
+    add_cpu_timer(timer);
+    yield_();
 }
 
 #[inline(always)]
@@ -262,7 +269,7 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     let next = pick_next();
     update_this_proc(next);
     let next = unsafe { &mut *next };
-    assert!(matches!(next.state, ProcessState::Runnable));
+    assert_matches!(next.state, ProcessState::Runnable);
     update_proc_state(next, ProcessState::Running);
     start_tick(next);
     if next.pid != this.pid {

@@ -3,6 +3,7 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(const_maybe_uninit_uninit_array)]
 #![feature(const_mut_refs)]
+#![feature(assert_matches)]
 
 #![no_std]
 #![no_main]
@@ -12,6 +13,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 #![feature(default_alloc_error_handler)]
+
 extern crate alloc;
 
 mod cores;
