@@ -28,6 +28,7 @@ use spin::Mutex;
 use driver::uart::UartDevice;
 use aarch64::intrinsic::{get_cpu_id, stop_cpu};
 use crate::aarch64::intrinsic::dsb_sy;
+use crate::aarch64::trace::unwind_stack;
 use crate::cores::console::CONSOLE;
 use crate::driver::power::power_off;
 use crate::kernel::cpu::{set_cpu_off, wait_all_cpu_off};
@@ -65,6 +66,7 @@ fn panic(_info: &PanicInfo) -> ! {
     unsafe { CONSOLE.force_write_unlock() };
     PANIC_FLAG.store(true, core::sync::atomic::Ordering::Relaxed);
     println!("\n\nKernel panic: {:?}", _info);
+    unsafe { unwind_stack(); }
     drop(lock);
     set_cpu_off();
     wait_all_cpu_off();

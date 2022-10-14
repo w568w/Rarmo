@@ -45,17 +45,13 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("IABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_IABORT_EL1 => {
-            println!("IABORT_EL1 exception, at {:x}", context.elr_el1);
-            set_cpu_off();
-            stop_cpu();
+            panic!("IABORT_EL1 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_DABORT_EL0 => {
             panic!("DABORT_EL0 exception, at {:x}", context.elr_el1);
         }
         ESR_EC_DABORT_EL1 => {
-            println!("DABORT_EL1 exception, at {:x}", context.elr_el1);
-            set_cpu_off();
-            stop_cpu();
+            panic!("DABORT_EL1 exception, at {:x}", context.elr_el1);
         }
         _ => {
             panic!("Unknown exception");
