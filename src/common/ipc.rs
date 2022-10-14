@@ -15,11 +15,11 @@ use crate::kernel::sched::{acquire_sched_lock, activate, sched, thisproc};
 const SEQ_MULTIPLIER: i32 = 16;
 const MAX_MSGNUM: i32 = 256;
 
-const IPC_RMID: i32 = 0;
-const IPC_PRIVATE: i32 = 0;
-const IPC_CREATE: i32 = 2;
-const IPC_EXCL: i32 = 1;
-const IPC_NOWAIT: i32 = 1;
+pub const IPC_RMID: i32 = 0;
+pub const IPC_PRIVATE: i32 = 0;
+pub const IPC_CREATE: i32 = 2;
+pub const IPC_EXCL: i32 = 1;
+pub const IPC_NOWAIT: i32 = 1;
 
 const ENOMEM: i32 = -1;
 const ENOSEQ: i32 = -2;
@@ -61,12 +61,19 @@ trait MessageHeader<T> {
     }
 }
 
+pub trait AsMessageBuffer<T> {
+    fn as_message_buffer(&mut self) -> &mut MessageBuffer {
+        unsafe { &mut *(self as *mut _ as *mut MessageBuffer) }
+    }
+}
+
 pub struct MessageBuffer {
     mtype: i32,
 }
 
 impl MessageHeader<MessageBuffer> for MessageBuffer {}
 
+#[repr(C)]
 struct Message {
     mtype: i32,
     size: usize,
@@ -84,6 +91,7 @@ struct MessageSegment {
 
 impl MessageHeader<MessageSegment> for MessageSegment {}
 
+#[repr(C)]
 struct MessageSender {
     proc: *mut Process,
     link: ListLink,
@@ -291,9 +299,9 @@ fn get_msg_queue(msg_id: i32) -> Option<*mut MessageQueue> {
 
 /// Determine whether the receiver can receive the message type.
 fn test_msg(receive_type: i32, msg_type: i32) -> bool {
-    if msg_type == 0 {
+    if receive_type == 0 {
         true
-    } else if msg_type > 0 {
+    } else if receive_type > 0 {
         receive_type == msg_type
     } else {
         receive_type <= -msg_type
@@ -496,6 +504,7 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
     msg_size = min(msg_size, found_msg.size);
     // Store the message into the buffer
     store_msg(msgp.get_data(), found_msg, msg_size);
+    msgp.mtype = found_msg.mtype;
     // Drop the message
     drop_msg(found_msg);
     // Return the size of the message
