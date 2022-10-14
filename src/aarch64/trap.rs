@@ -2,7 +2,7 @@
 
 use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
-use crate::kernel::proc::UserContext;
+use crate::kernel::proc::{exit, UserContext};
 use crate::kernel::sched::thisproc;
 use core::arch::global_asm;
 use crate::kernel::syscall::syscall_entry;

@@ -45,6 +45,8 @@ const fn pid_generator(fill_count: usize, i: usize) -> usize {
 pub struct UserContext {
     pub fp: u64,
     pub lr: u64,
+    pub sp_el0: u64,
+    _padding: u64,
     pub spsr_el1: u64,
     pub elr_el1: u64,
     // q0-q31

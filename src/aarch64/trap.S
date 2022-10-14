@@ -47,10 +47,15 @@ mrs x0, SPSR_EL1
 mrs x1, ELR_EL1
 pushp(x0, x1)
 
-pushp(x29, x30)
-// Save the current stack pointer.
-mov x0, sp
+// Save user space stack pointer
+mrs x0, SP_EL0
+pushp(x0, xzr)
 
+// Save fp (frame pointer) and lr (link register).
+pushp(x29, x30)
+
+// Set parameter for trap_global_handler
+mov x0, sp
 // Call the trap handler.
 bl trap_global_handler
 
@@ -59,6 +64,9 @@ bl trap_global_handler
 trap_return:
 // Restore the context from stack.
 popp(x29, x30)
+
+popp(x0, xzr)
+msr SP_EL0, x0
 
 popp(x0, x1)
 msr SPSR_EL1, x0
