@@ -8,6 +8,7 @@ use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
 use crate::aarch64::intrinsic::get_time_us;
 use crate::common::tree::{RbTree, RbTreeLink};
+use crate::cores::virtual_memory::VirtualMemoryPageTable;
 use crate::kernel::proc::guard::check_guard_bits;
 
 use super::cpu::get_cpu_info;
@@ -252,6 +253,7 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     start_tick(next);
     if next.pid != this.pid {
         unsafe {
+            next.pgdir.attach();
             swtch(next.kernel_context, &mut this.kernel_context);
         }
     }

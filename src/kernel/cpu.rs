@@ -3,12 +3,12 @@ use core::mem::MaybeUninit;
 use alloc::boxed::Box;
 use field_offset::offset_of;
 
-use crate::aarch64::intrinsic::{disable_trap, get_time_ms, get_time_us, reset_esr_el1, set_ttbr0_el1, set_vbar_el1};
+use crate::aarch64::intrinsic::{disable_trap, get_time_ms, reset_esr_el1, set_ttbr0_el1, set_vbar_el1};
 use crate::aarch64::kernel_pt::invalid_pt;
 use crate::aarch64::mmu::kernel2physical;
 use crate::driver::clock::{init_clock, set_clock_handler, reset_clock};
 use crate::kernel::proc::create_idle_process;
-use crate::kernel::sched::{start_idle_proc, yield_, Sched};
+use crate::kernel::sched::{start_idle_proc, Sched};
 use crate::{define_early_init, get_cpu_id};
 use crate::common::list::ListNode;
 use crate::common::tree::{RbTree, RbTreeLink};

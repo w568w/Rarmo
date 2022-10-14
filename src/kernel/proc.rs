@@ -232,7 +232,7 @@ pub fn wait() -> Option<(usize, usize)> {
             proc.detach_child(x);
             if x.can_be_freed() {
                 // todo
-                // x.pgdir.free();
+                x.pgdir.free();
                 // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) }, KERNEL_STACK_SIZE / PAGE_SIZE);
             }
             PID_POOL.free(pid);

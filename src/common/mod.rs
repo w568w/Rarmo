@@ -19,6 +19,37 @@ pub fn round_up<T: Copy + Rem<Output=T> + Sub<Output=T> + Add<Output=T> + From<u
     round_down(addr + align - T::from(1), align)
 }
 
+const fn simple_shl(x: u64, bits: u8) -> u64 {
+    if bits == 64 {
+        0
+    } else {
+        x << bits
+    }
+}
+
+pub const fn set_bits(num: &mut u64, mut bits: u64, start: u8, end: u8) {
+    assert!(start <= end);
+    if start == end {
+        return;
+    }
+    let len = end - start;
+    let mask = simple_shl(1, len).wrapping_sub(1u64);
+    bits &= mask;
+    let mask = simple_shl(1, end).wrapping_sub(simple_shl(1, start));
+    *num &= !mask;
+    *num |= bits << start;
+}
+
+pub const fn get_bits(num: u64, start: u8, end: u8) -> u64 {
+    assert!(start <= end);
+    if start == end {
+        return 0;
+    }
+    let len = end - start;
+    let mask = simple_shl(1, len).wrapping_sub(1u64);
+    (num >> start) & mask
+}
+
 #[allow(dead_code)]
 pub const fn padding(size: usize, align: usize) -> usize {
     if size % align == 0 {
