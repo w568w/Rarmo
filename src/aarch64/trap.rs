@@ -5,7 +5,7 @@ use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::UserContext;
 use crate::kernel::sched::thisproc;
 use core::arch::global_asm;
-use crate::{println, set_cpu_off};
+use crate::kernel::syscall::syscall_entry;
 
 const ESR_EC_SHIFT: i8 = 26;
 const ESR_ISS_MASK: u64 = 0xFFFFFF;
@@ -39,7 +39,7 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             }
         }
         ESR_EC_SVC64 => {
-            // TODO: implement syscall
+            syscall_entry(context);
         }
         ESR_EC_IABORT_EL0 => {
             panic!("IABORT_EL0 exception, at {:x}", context.elr_el1);

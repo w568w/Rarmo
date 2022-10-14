@@ -44,6 +44,18 @@ macro_rules! define_init {
     };
 }
 
+#[macro_export]
+macro_rules! define_syscall {
+    ($syscall_id:expr, $func:ident) => {
+        paste::paste! {
+            pub unsafe extern "C" fn [<__syscall_ $func>] () {
+                $crate::kernel::syscall::register_syscall($syscall_id, $func);
+            }
+            $crate::define_early_init!([<__syscall_ $func>]);
+        }
+    };
+}
+
 extern "C" {
     fn boot_stack_top();
 }
