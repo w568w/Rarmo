@@ -69,7 +69,7 @@ pub struct Process {
     pub pid: usize,
     pub killed: bool,
     pub idle: bool,
-    pub exit_code: usize,
+    pub exit_code: isize,
     pub state: ProcessState,
     pub child_exit: Semaphore,
     pub first_child: Option<*mut Process>,
@@ -189,7 +189,7 @@ impl Default for Box<Process> {
     }
 }
 
-pub fn exit(code: usize) -> ! {
+pub fn exit(code: isize) -> ! {
     let proc = thisproc();
     proc.exit_code = code;
     let proc_lock = PROC_LOCK.lock();
@@ -209,7 +209,7 @@ pub fn exit(code: usize) -> ! {
     panic!("Zombie process should not be scheduled");
 }
 
-pub fn wait() -> Option<(usize, usize)> {
+pub fn wait() -> Option<(usize, isize)> {
     let proc = thisproc();
     if proc.first_child.is_none() {
         return None;
@@ -226,8 +226,6 @@ pub fn wait() -> Option<(usize, usize)> {
         if is_zombie(x) {
             let exit_code = x.exit_code;
             let pid = x.pid;
-            // Set the kill flag.
-            proc.killed = true;
             // Free stack and context.
             proc.detach_child(x);
             if x.can_be_freed() {
@@ -245,10 +243,37 @@ pub fn wait() -> Option<(usize, usize)> {
     panic!("child_exit is posted, but no zombie child is found!");
 }
 
+fn _find_proc(pid: usize, proc: &'static mut Process) -> Option<&'static mut Process> {
+    if proc.pid == pid {
+        return Some(proc);
+    }
+    if let Some(first_child) = proc.first_child() {
+        for child in first_child.link().iter::<Process>(false) {
+            if let Some(proc) = _find_proc(pid, child) {
+                return Some(proc);
+            }
+        }
+    }
+    None
+}
+
+fn find_proc(pid: usize) -> Option<&'static mut Process> {
+    _find_proc(pid, root_proc())
+}
+
 pub fn kill(pid: usize) -> bool {
-    // Set the killed flag of the proc to true and return 0.
-    // Return -1 if the pid is invalid (proc not found).
-    todo!()
+    let _lock = PROC_LOCK.lock();
+    if let Some(proc) = find_proc(pid) {
+        let _sched_lock = acquire_sched_lock();
+        if is_unused_no_lock(proc) {
+            return false;
+        }
+        proc.killed = true;
+        activate_no_lock(proc);
+        true
+    } else {
+        false
+    }
 }
 
 // Create a new process.

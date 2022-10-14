@@ -96,6 +96,19 @@ pub fn is_zombie(proc: &Process) -> bool {
 }
 
 #[inline(always)]
+pub fn is_unused(proc: &Process) -> bool {
+    let lock = acquire_sched_lock();
+    let ret = matches!(proc.state, ProcessState::Unused);
+    release_sched_lock(lock);
+    ret
+}
+
+#[inline(always)]
+pub fn is_unused_no_lock(proc: &Process) -> bool {
+    matches!(proc.state, ProcessState::Unused)
+}
+
+#[inline(always)]
 pub fn is_zombie_no_lock(proc: &Process) -> bool {
     matches!(proc.state, ProcessState::Zombie)
 }
@@ -229,7 +242,10 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
 
     let this = thisproc();
     assert!(matches!(this.state, ProcessState::Running));
+
+    // Refuse to schedule a killed process. It should be awaken until it is exited.
     if this.killed && new_state != ProcessState::Zombie {
+        release_sched_lock(sched_lock);
         return;
     }
     stop_tick_and_update_vruntime(this);

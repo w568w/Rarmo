@@ -57,7 +57,9 @@ pub extern "C" fn trap_global_handler(context: *mut UserContext) {
             panic!("Unknown exception");
         }
     }
-    // TODO: stop killed process while returning to user space
+    if thisproc().killed {
+        exit(-1);
+    }
 }
 
 #[no_mangle]

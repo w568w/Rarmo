@@ -33,7 +33,7 @@ unsafe fn proc_test_1b(a: usize) {
         }
         _ => {}
     }
-    exit(a);
+    exit(a as isize);
 }
 
 unsafe fn proc_test_1a(a: usize) {
@@ -90,7 +90,7 @@ unsafe fn proc_test_1a(a: usize) {
         }
         _ => {}
     }
-    exit(a);
+    exit(a as isize);
 }
 
 unsafe fn proc_test_1(_: usize) {
@@ -106,7 +106,7 @@ unsafe fn proc_test_1(_: usize) {
     }
     for _ in 0..10 {
         let (id, ret) = wait().unwrap();
-        assert_eq!(id, pid[ret]);
+        assert_eq!(id, pid[ret as usize]);
         println!("proc_test_1: proc {} exit", ret);
     }
     exit(0);
@@ -124,6 +124,7 @@ pub fn proc_test() {
             break;
         }
         let (id, code) = ret.unwrap();
+        let code = code as usize;
         if id == pid {
             assert_eq!(code, 0);
         } else {
