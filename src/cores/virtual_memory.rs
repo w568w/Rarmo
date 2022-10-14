@@ -3,7 +3,7 @@
 use core::ptr;
 use crate::aarch64::intrinsic::set_ttbr0_el1;
 use crate::aarch64::kernel_pt::invalid_pt;
-use crate::aarch64::mmu::{kernel2physical, N_PTE_PER_TABLE};
+use crate::aarch64::mmu::{kernel2physical, N_PTE_PER_TABLE, physical2kernel};
 use crate::common::{get_bits, set_bits};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 
@@ -59,6 +59,10 @@ impl PageTableEntry {
         (get_bits(self.0, offset, 64 - offset) << offset) as usize
     }
 
+    const fn kernel_addr(&self, level: u8) -> u64 {
+        physical2kernel(self.addr(level) as u64)
+    }
+
     pub const fn set_addr(&mut self, addr: usize, level: u8) {
         let offset = self.addr_offset(level);
         set_bits(&mut self.0, (addr >> offset) as u64, offset, 64 - offset);
@@ -67,14 +71,14 @@ impl PageTableEntry {
     pub fn free(&mut self, level: u8) {
         if self.valid() {
             if matches!(self.type_(), PageTableEntryType::Table) {
-                let addr = self.addr(level);
+                let addr = self.kernel_addr(level);
                 let table = unsafe { &mut *(addr as *mut PageTable) };
                 for entry in table.iter_mut() {
                     entry.free(level + 1);
                 }
             }
             self.set_valid(false);
-            kfree_page(self.addr(level) as *mut u8, 1);
+            kfree_page(self.kernel_addr(level) as *mut u8, 1);
         }
     }
 }
@@ -155,7 +159,7 @@ impl VirtualMemoryPageTable for PageTableDirectory {
                     } else {
                         PageTableEntryType::Table
                     });
-                    pte.set_addr(new_page_table as usize, level);
+                    pte.set_addr(kernel2physical(new_page_table as u64) as usize, level);
                 } else {
                     return None;
                 }
@@ -164,7 +168,7 @@ impl VirtualMemoryPageTable for PageTableDirectory {
                 return Some(pte);
             }
             if level < 3 {
-                current_page_table = unsafe { &mut *(pte.addr(level) as *mut PageTable) };
+                current_page_table = unsafe { &mut *(pte.kernel_addr(level) as *mut PageTable) };
             }
         }
         None
