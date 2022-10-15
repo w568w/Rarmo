@@ -282,10 +282,16 @@ pub fn sched(sched_lock: MutexGuard<()>, new_state: ProcessState) {
     release_sched_lock(sched_lock);
 }
 
-pub extern "C" fn proc_entry(real_entry: extern "C" fn(usize), arg: usize) -> ! {
+extern {
+    #[link_name = "llvm.addressofreturnaddress"]
+    fn addr_of_return_address() -> *mut extern "C" fn(usize);
+}
+
+pub extern "C" fn proc_entry(real_entry: extern "C" fn(usize), arg: usize) -> usize {
     unsafe {
         force_release_sched_lock();
-        real_entry(arg);
+        // Return to real_entry
+        addr_of_return_address().write_volatile(real_entry);
     }
-    exit(0);
+    return arg;
 }

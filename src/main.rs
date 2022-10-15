@@ -4,6 +4,7 @@
 #![feature(const_maybe_uninit_uninit_array)]
 #![feature(const_mut_refs)]
 #![feature(assert_matches)]
+#![feature(link_llvm_intrinsics)]
 
 #![no_std]
 #![no_main]
