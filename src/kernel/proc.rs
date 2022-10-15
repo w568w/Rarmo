@@ -232,8 +232,8 @@ pub fn wait() -> Option<(usize, isize)> {
             proc.detach_child(x);
             if x.can_be_freed() {
                 x.pgdir.free();
-                // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) },
-                //            KERNEL_STACK_SIZE / PAGE_SIZE);
+                kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) },
+                           KERNEL_STACK_SIZE / PAGE_SIZE);
             }
             PID_POOL.free(pid);
             // Scheduler has removed it and parent has also detached it, so we can free it.
@@ -288,7 +288,9 @@ unsafe fn init_proc(p: &mut Process) {
     let stack_top = kalloc_page(KERNEL_STACK_SIZE / PAGE_SIZE);
     proc.kernel_stack = stack_top.byte_add(KERNEL_STACK_SIZE);
     put_guard_bits(proc.kernel_stack);
-    proc.kernel_context = proc.kernel_stack
+    proc.user_context = proc.kernel_stack
+        .byte_sub(core::mem::size_of::<UserContext>()) as *mut UserContext;
+    proc.kernel_context = proc.user_context
         .byte_sub(core::mem::size_of::<KernelContext>()) as *mut KernelContext;
     proc.pid = PID_POOL.alloc(pid_generator).unwrap();
     // Set up the proc tree, if the caller is a running process.

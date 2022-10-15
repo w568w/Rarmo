@@ -5,8 +5,9 @@ pub mod lock;
 pub mod tree;
 pub mod bitmap;
 pub mod ipc;
+pub mod buddy;
 
-use core::ops::{Add, Rem, Sub};
+use core::ops::{Add, Rem, Shl, Sub};
 
 pub fn round_down<T: Copy + Rem<Output=T> + Sub<Output=T>>(addr: T, align: T) -> T {
     addr - (addr % align)
@@ -17,6 +18,16 @@ pub fn round_up<T: Copy + Rem<Output=T> + Sub<Output=T> + Add<Output=T> + From<u
     align: T,
 ) -> T {
     round_down(addr + align - T::from(1), align)
+}
+
+pub fn round_up_to_2n<T: Copy + Rem<Output=T> + Shl<i32, Output=T> + From<u8> + PartialOrd>(
+    addr: T,
+) -> i32 {
+    let mut order = 0;
+    while addr > (T::from(1) << order) {
+        order += 1;
+    }
+    order
 }
 
 const fn simple_shl(x: u64, bits: u8) -> u64 {

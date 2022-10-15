@@ -86,7 +86,6 @@ impl SlobPageList {
 
 #[repr(C)]
 pub struct SlobPage {
-    pub buddy_link: ListLink,
     // How many free units are left on the page?
     pub free_units: SlobUnit,
     // Point to the first free block on the page.

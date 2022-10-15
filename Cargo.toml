@@ -28,3 +28,5 @@ aligned = "0.4.1"
 rand = { version = "0.8.4", default-features = false, features = ["small_rng"] }
 # Field offset calculation
 field-offset = "0.3.4"
+# Bitmap
+bitvec = { version = "1.0.1", default-features = false, features = ["atomic"] }
