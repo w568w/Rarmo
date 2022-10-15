@@ -3,7 +3,7 @@
 use crate::aarch64::intrinsic::*;
 use crate::driver::interrupt::interrupt_global_handler;
 use crate::kernel::proc::{exit, UserContext};
-use crate::kernel::sched::thisproc;
+use crate::kernel::sched::{thisproc, try_thisproc};
 use core::arch::global_asm;
 use crate::kernel::syscall::syscall_entry;
 
@@ -23,7 +23,9 @@ global_asm!(include_str!("exception_vector.asm"));
 
 #[no_mangle]
 pub extern "C" fn trap_global_handler(context: *mut UserContext) {
-    thisproc().user_context = context;
+    if let Some(proc) = try_thisproc() {
+        proc.user_context = context;
+    }
     let context = unsafe { &mut *context };
     let esr = get_esr_el1();
     let exception_class = esr >> ESR_EC_SHIFT;
