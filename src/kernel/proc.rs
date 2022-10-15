@@ -232,8 +232,8 @@ pub fn wait() -> Option<(usize, isize)> {
             proc.detach_child(x);
             if x.can_be_freed() {
                 x.pgdir.free();
-                kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) },
-                           KERNEL_STACK_SIZE / PAGE_SIZE);
+                // kfree_page(unsafe { x.kernel_stack.byte_sub(KERNEL_STACK_SIZE) },
+                //            KERNEL_STACK_SIZE / PAGE_SIZE);
             }
             PID_POOL.free(pid);
             // Scheduler has removed it and parent has also detached it, so we can free it.
