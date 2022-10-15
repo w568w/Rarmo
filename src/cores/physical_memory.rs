@@ -170,7 +170,6 @@ impl BuddyPageAllocation {
             if self.is_first_page_in_order(prev_page, order) {
                 page.link().detach();
                 prev_page.link().detach();
-                self.declare_page_free(page_addr, order);
                 self.insert_page(prev_page, order + 1);
                 return;
             }
@@ -181,7 +180,6 @@ impl BuddyPageAllocation {
             if self.is_first_page_in_order(next_page, order) {
                 next_page.link().detach();
                 page.link().detach();
-                self.declare_page_free(page_addr, order);
                 self.insert_page(page, order + 1);
                 return;
             }

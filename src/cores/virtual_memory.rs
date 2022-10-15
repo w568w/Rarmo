@@ -7,12 +7,45 @@ use crate::aarch64::mmu::{kernel2physical, N_PTE_PER_TABLE, physical2kernel};
 use crate::common::{get_bits, set_bits};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 
+pub mod pte_flags {
+    use crate::cores::virtual_memory::{AccessPermission, PageTableEntry, PageTableEntryType, Shareability};
+
+    pub fn user(pte: &mut PageTableEntry) {
+        pte.set_access_permission(AccessPermission::El1rwEl0rw)
+    }
+
+    pub fn normal(pte: &mut PageTableEntry) {
+        pte.set_attr_index(1);
+        pte.set_accessed(true);
+        pte.set_shareability(Shareability::OuterShareable);
+    }
+
+    pub fn user_page(pte: &mut PageTableEntry) {
+        user(pte);
+        normal(pte);
+        pte.set_type(PageTableEntryType::TableOrPage);
+    }
+}
+
 #[repr(transparent)]
 pub struct PageTableEntry(pub u64);
 
 pub enum PageTableEntryType {
     Block,
-    Table,
+    TableOrPage,
+}
+
+pub enum Shareability {
+    NonShareable,
+    OuterShareable,
+    InnerShareable,
+}
+
+pub enum AccessPermission {
+    El1rwEl0n,
+    El1rwEl0rw,
+    EL1rEL0n,
+    EL1rEL0r,
 }
 
 impl PageTableEntry {
@@ -30,7 +63,7 @@ impl PageTableEntry {
 
     pub const fn type_(&self) -> PageTableEntryType {
         if get_bits(self.0, 1, 2) == 1 {
-            PageTableEntryType::Table
+            PageTableEntryType::TableOrPage
         } else {
             PageTableEntryType::Block
         }
@@ -39,7 +72,7 @@ impl PageTableEntry {
     pub const fn set_type(&mut self, type_: PageTableEntryType) {
         let type_ = match type_ {
             PageTableEntryType::Block => 0,
-            PageTableEntryType::Table => 1,
+            PageTableEntryType::TableOrPage => 1,
         };
         set_bits(&mut self.0, type_, 1, 2);
     }
@@ -49,7 +82,7 @@ impl PageTableEntry {
             PageTableEntryType::Block => {
                 12 + 9 * (3 - level)
             }
-            PageTableEntryType::Table => {
+            PageTableEntryType::TableOrPage => {
                 12
             }
         }
@@ -68,9 +101,92 @@ impl PageTableEntry {
         set_bits(&mut self.0, (addr >> offset) as u64, offset, 64 - offset);
     }
 
+    /// Attributes
+    pub const fn execute_never(&self) -> bool {
+        get_bits(self.0, 54, 55) == 1
+    }
+
+    pub const fn set_execute_never(&mut self, execute_never: bool) {
+        let execute_never = if execute_never { 1 } else { 0 };
+        set_bits(&mut self.0, execute_never, 54, 55);
+    }
+
+    pub const fn privileged_execute_never(&self) -> bool {
+        get_bits(self.0, 53, 54) == 1
+    }
+
+    pub const fn set_privileged_execute_never(&mut self, privileged_execute_never: bool) {
+        let privileged_execute_never = if privileged_execute_never { 1 } else { 0 };
+        set_bits(&mut self.0, privileged_execute_never, 53, 54);
+    }
+
+    pub const fn accessed(&self) -> bool {
+        get_bits(self.0, 10, 11) == 1
+    }
+
+    pub const fn set_accessed(&mut self, accessed: bool) {
+        let accessed = if accessed { 1 } else { 0 };
+        set_bits(&mut self.0, accessed, 10, 11);
+    }
+
+    pub const fn shareability(&self) -> Shareability {
+        match get_bits(self.0, 8, 10) {
+            0 => Shareability::NonShareable,
+            2 => Shareability::OuterShareable,
+            3 => Shareability::InnerShareable,
+            _ => unreachable!(),
+        }
+    }
+
+    pub const fn set_shareability(&mut self, shareability: Shareability) {
+        let shareability = match shareability {
+            Shareability::NonShareable => 0,
+            Shareability::OuterShareable => 2,
+            Shareability::InnerShareable => 3,
+        };
+        set_bits(&mut self.0, shareability, 8, 10);
+    }
+
+    pub const fn access_permission(&self) -> AccessPermission {
+        match get_bits(self.0, 6, 8) {
+            0 => AccessPermission::El1rwEl0n,
+            1 => AccessPermission::El1rwEl0rw,
+            2 => AccessPermission::EL1rEL0n,
+            3 => AccessPermission::EL1rEL0r,
+            _ => unreachable!(),
+        }
+    }
+
+    pub const fn set_access_permission(&mut self, access_permission: AccessPermission) {
+        let access_permission = match access_permission {
+            AccessPermission::El1rwEl0n => 0,
+            AccessPermission::El1rwEl0rw => 1,
+            AccessPermission::EL1rEL0n => 2,
+            AccessPermission::EL1rEL0r => 3,
+        };
+        set_bits(&mut self.0, access_permission, 6, 8);
+    }
+
+    pub const fn non_secure(&self) -> bool {
+        get_bits(self.0, 5, 6) == 1
+    }
+
+    pub const fn set_non_secure(&mut self, non_secure: bool) {
+        let non_secure = if non_secure { 1 } else { 0 };
+        set_bits(&mut self.0, non_secure, 5, 6);
+    }
+
+    pub const fn attr_index(&self) -> u8 {
+        get_bits(self.0, 2, 5) as u8
+    }
+
+    pub const fn set_attr_index(&mut self, attr_index: u8) {
+        set_bits(&mut self.0, attr_index as u64, 2, 5);
+    }
+
     pub fn free(&mut self, level: u8) {
         if self.valid() {
-            if matches!(self.type_(), PageTableEntryType::Table) {
+            if level < 3 && matches!(self.type_(), PageTableEntryType::TableOrPage) {
                 let addr = self.kernel_addr(level);
                 let table = unsafe { &mut *(addr as *mut PageTable) };
                 for entry in table.iter_mut() {
@@ -154,17 +270,13 @@ impl VirtualMemoryPageTable for PageTableDirectory {
                         ptr::write_bytes(new_page_table, 0, 1);
                     }
                     pte.set_valid(true);
-                    pte.set_type(if level == 3 {
-                        PageTableEntryType::Block
-                    } else {
-                        PageTableEntryType::Table
-                    });
+                    pte.set_type(PageTableEntryType::TableOrPage);
                     pte.set_addr(kernel2physical(new_page_table as u64) as usize, level);
                 } else {
                     return None;
                 }
             }
-            if matches!(pte.type_(), PageTableEntryType::Block) {
+            if level == 3 {
                 return Some(pte);
             }
             if level < 3 {
