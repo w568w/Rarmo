@@ -192,9 +192,9 @@ impl PageTableEntry {
                 for entry in table.iter_mut() {
                     entry.free(level + 1);
                 }
+                kfree_page(self.kernel_addr(level) as *mut u8, 1);
             }
             self.set_valid(false);
-            kfree_page(self.kernel_addr(level) as *mut u8, 1);
         }
     }
 }
