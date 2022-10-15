@@ -4,9 +4,9 @@
 .align 12
 loop_start:
     mov x4, x0
-    mov x8, #12
+    mov x8, #114
 delay:
-    mov x0, #114
+    mov x0, #10000
 
     mov x1, #0
     mov x2, #1

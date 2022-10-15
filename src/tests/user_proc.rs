@@ -1,11 +1,11 @@
 use core::arch::global_asm;
 use core::ptr;
-use crate::aarch64::mmu::{kernel2physical, physical2kernel};
+use crate::aarch64::mmu::{kernel2physical, PAGE_SIZE, physical2kernel};
 use crate::common::sem::Semaphore;
 use crate::cores::virtual_memory::{PageTableDirectory, pte_flags, VirtualMemoryPageTable};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use crate::kernel::proc::{create_proc, kill, start_proc, wait};
-use crate::{get_cpu_id, println};
+use crate::{define_syscall, get_cpu_id, println};
 
 static mut DONE: Semaphore = Semaphore::uninit(0);
 
@@ -19,7 +19,7 @@ extern "C" {
 
 const BASE_ADDR: usize = 0x400000;
 
-static mut P: [*mut u8; 100000] = [ptr::null_mut(); 100000];
+static mut P: [*mut u8; 100] = [ptr::null_mut(); 100];
 
 #[test_case]
 pub fn vm_test() {
@@ -72,6 +72,8 @@ pub fn report(args: [u64; 6]) -> u64 {
     return 0;
 }
 
+define_syscall!(114, report);
+
 #[test_case]
 pub fn user_proc_test() {
     println!("user proc test");
@@ -81,7 +83,7 @@ pub fn user_proc_test() {
     let mut pids = [0usize; 22];
     for i in 0..pids.len() {
         let proc = create_proc();
-        let q = loop_start as usize;
+        let mut q = loop_start as usize;
         let p = loop_end as usize;
         while q < p {
             let pte = proc.pgdir.walk(BASE_ADDR + q - loop_start as usize, true).unwrap();
@@ -89,6 +91,7 @@ pub fn user_proc_test() {
                 (*pte).set_addr(kernel2physical(q as u64) as usize, 3);
                 pte_flags::user_page(unsafe { &mut *pte });
             }
+            q += PAGE_SIZE;
         }
         unsafe {
             (*proc.user_context).x[0] = i as u64;
@@ -96,7 +99,6 @@ pub fn user_proc_test() {
             (*proc.user_context).spsr_el1 = 0;
         }
         pids[i] = start_proc(proc, trap_return as *const fn(usize), 0);
-        println!("pids[{}] = {}", i, pids[i]);
     }
     unsafe {
         assert!(DONE.get_or_wait());
@@ -107,8 +109,15 @@ pub fn user_proc_test() {
     }
     for _ in pids {
         let (pid, code) = wait().unwrap();
-        println!("pid {} killed", pid);
         assert_eq!(code, -1);
     }
     println!("user proc test PASS");
+    unsafe {
+        for i in 0..CPU_CNT.len() {
+            println!("cpu {}: cnt {}", i, CPU_CNT[i as usize]);
+        }
+        for i in 0..PROC_CNT.len() {
+            println!("proc {}: cnt {}", i, PROC_CNT[i as usize]);
+        }
+    }
 }
