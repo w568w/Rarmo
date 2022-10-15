@@ -5,7 +5,7 @@ use crate::common::sem::Semaphore;
 use crate::cores::virtual_memory::{PageTableDirectory, pte_flags, VirtualMemoryPageTable};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use crate::kernel::proc::{create_proc, kill, start_proc, wait};
-use crate::println;
+use crate::{get_cpu_id, println};
 
 static mut DONE: Semaphore = Semaphore::uninit(0);
 
@@ -51,6 +51,28 @@ pub fn vm_test() {
     println!("vm_test PASS");
 }
 
+static mut PROC_CNT: [u64; 22] = [0; 22];
+static mut CPU_CNT: [u64; 4] = [0; 4];
+static mut STOP: bool = false;
+
+pub fn report(args: [u64; 6]) -> u64 {
+    let id = args[0];
+    assert!(id < 22);
+    unsafe {
+        if STOP {
+            return 0;
+        }
+        PROC_CNT[id as usize] += 1;
+        CPU_CNT[get_cpu_id()] += 1;
+        if PROC_CNT[id as usize] > 12345 {
+            STOP = true;
+            DONE.post();
+        }
+    }
+    return 0;
+}
+
+#[test_case]
 pub fn user_proc_test() {
     println!("user proc test");
     unsafe {
@@ -65,7 +87,7 @@ pub fn user_proc_test() {
             let pte = proc.pgdir.walk(BASE_ADDR + q - loop_start as usize, true).unwrap();
             unsafe {
                 (*pte).set_addr(kernel2physical(q as u64) as usize, 3);
-                // todo set flags
+                pte_flags::user_page(unsafe { &mut *pte });
             }
         }
         unsafe {
