@@ -26,7 +26,7 @@ impl ListNode<ListLink> for WaitData {
 }
 
 impl Semaphore {
-    pub fn uninit(value: isize) -> Self {
+    pub const fn uninit(value: isize) -> Self {
         Self {
             lock: Mutex::new(()),
             value,
