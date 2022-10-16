@@ -4,6 +4,7 @@ use core::{
     arch::asm,
     ptr::{read_volatile, write_volatile},
 };
+use core::mem::size_of;
 
 /* Some useful functions for `AArch64`. */
 
@@ -58,6 +59,21 @@ pub fn get_timer_freq() -> u64 {
         );
     };
     ret
+}
+
+#[inline(always)]
+pub fn dc_civac<T>(addr: &T) {
+    let addr = addr as *const T as usize;
+    for i in 0..size_of::<T>() {
+        _dc_civac(addr + i);
+    }
+}
+
+#[inline(always)]
+fn _dc_civac(addr: usize) {
+    unsafe {
+        asm!("dc civac, {}", in(reg) addr, options(nomem, nostack, preserves_flags));
+    }
 }
 
 #[inline(always)]
@@ -197,6 +213,14 @@ pub mod addr {
     pub const GPIO_BASE: u64 = MMIO_BASE + 0x200000;
     pub const GPFSEL0: u64 = GPIO_BASE + 0x00;
     pub const GPFSEL1: u64 = GPIO_BASE + 0x04;
+    pub const GPFSEL2: u64 = GPIO_BASE + 0x08;
+    pub const GPFSEL3: u64 = GPIO_BASE + 0x0C;
+    pub const GPFSEL4: u64 = GPIO_BASE + 0x10;
+    pub const GPFSEL5: u64 = GPIO_BASE + 0x14;
+    pub const GPEDS0: u64 = GPIO_BASE + 0x40;
+    pub const GPEDS1: u64 = GPIO_BASE + 0x44;
+    pub const GPHEN0: u64 = GPIO_BASE + 0x64;
+    pub const GPHEN1: u64 = GPIO_BASE + 0x68;
     pub const GPPUD: u64 = GPIO_BASE + 0x94;
     pub const GPPUDCLK0: u64 = GPIO_BASE + 0x98;
     pub const GPPUDCLK1: u64 = GPIO_BASE + 0x9C;
@@ -222,6 +246,24 @@ pub mod addr {
     pub const MBOX_STATUS: u64 = VIDEOCORE_MBOX + 0x18;
     pub const MBOX_CONFIG: u64 = VIDEOCORE_MBOX + 0x1C;
     pub const MBOX_WRITE: u64 = VIDEOCORE_MBOX + 0x20;
+    // EEMC Address definition
+    pub const EMMC_ARG2: u64 = MMIO_BASE + 0x00300000;
+    pub const EMMC_BLKSIZECNT: u64 = MMIO_BASE + 0x00300004;
+    pub const EMMC_ARG1: u64 = MMIO_BASE + 0x00300008;
+    pub const EMMC_CMDTM: u64 = MMIO_BASE + 0x0030000C;
+    pub const EMMC_RESP0: u64 = MMIO_BASE + 0x00300010;
+    pub const EMMC_RESP1: u64 = MMIO_BASE + 0x00300014;
+    pub const EMMC_RESP2: u64 = MMIO_BASE + 0x00300018;
+    pub const EMMC_RESP3: u64 = MMIO_BASE + 0x0030001C;
+    pub const EMMC_DATA: u64 = MMIO_BASE + 0x00300020;
+    pub const EMMC_STATUS: u64 = MMIO_BASE + 0x00300024;
+    pub const EMMC_CONTROL0: u64 = MMIO_BASE + 0x00300028;
+    pub const EMMC_CONTROL1: u64 = MMIO_BASE + 0x0030002C;
+    pub const EMMC_INTERRUPT: u64 = MMIO_BASE + 0x00300030;
+    pub const EMMC_IRPT_MASK: u64 = MMIO_BASE + 0x00300034;
+    pub const EMMC_IRPT_EN: u64 = MMIO_BASE + 0x00300038;
+    pub const EMMC_CONTROL2: u64 = MMIO_BASE + 0x0030003C;
+    pub const EMMC_SLOTISR_VER: u64 = MMIO_BASE + 0x003000fc;
 }
 
 pub mod aux {
@@ -250,11 +292,14 @@ pub mod mbox {
     // tags
     pub const MBOX_TAG_SETPOWER: u32 = 0x28001;
     pub const MBOX_TAG_SETCLKRATE: u32 = 0x38002;
+    pub const MBOX_TAG_GET_ARM_MEMORY: u32 = 0x00010005;
+    pub const MBOX_TAG_GET_CLOCK_RATE: u32 = 0x00030002;
     pub const MBOX_TAG_LAST: u32 = 0;
 
     use aligned::{A16, Aligned};
     use crate::aarch64::intrinsic::addr::{MBOX_READ, MBOX_STATUS, MBOX_WRITE};
     use crate::aarch64::intrinsic::{get_u32, put_u32};
+    use crate::dsb_sy;
 
     pub static mut MBOX: Aligned<A16, [u32; 36]> = Aligned([0; 36]);
 
@@ -269,6 +314,28 @@ pub mod mbox {
             while get_u32(MBOX_STATUS) & MBOX_EMPTY != 0 {}
             if get_u32(MBOX_READ) == message_addr {
                 return MBOX[1] == MBOX_RESPONSE;
+            }
+        }
+    }
+
+    pub fn write(buf_paddr: u32, channel: u8) {
+        while get_u32(MBOX_STATUS) & MBOX_FULL != 0 {}
+        dsb_sy();
+        let channel_descriptor: u32 = <u8 as Into<u32>>::into(channel) & 0xf;
+        let message_addr: u32 =
+            ((buf_paddr & (!0xf)) | channel_descriptor) as u32;
+        put_u32(MBOX_WRITE, message_addr);
+        dsb_sy();
+    }
+
+    pub fn read(channel: u8) -> u32 {
+        loop {
+            dsb_sy();
+            while get_u32(MBOX_STATUS) & MBOX_EMPTY != 0 {}
+            dsb_sy();
+            let r = get_u32(MBOX_READ);
+            if (r & 0xf) == channel as u32 {
+                return r >> 4;
             }
         }
     }

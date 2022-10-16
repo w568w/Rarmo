@@ -5,6 +5,7 @@
 #![feature(const_mut_refs)]
 #![feature(assert_matches)]
 #![feature(link_llvm_intrinsics)]
+#![feature(cstr_from_bytes_until_nul)]
 
 #![no_std]
 #![no_main]
@@ -14,7 +15,6 @@
 #![reexport_test_harness_main = "test_main"]
 
 #![feature(default_alloc_error_handler)]
-
 extern crate alloc;
 
 mod cores;
