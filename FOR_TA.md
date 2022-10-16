@@ -8,6 +8,6 @@ This guide is a "TL; DR" version of README written for TAs to help them set up t
 3. Install `gdb-multiarch` and `mtools`: `apt install gdb-multiarch mtools`.
 4. Install Rust: run the installer from [rustup](https://rustup.rs/). **Note: it is also a MUST to choose the `nightly` version manually at the first step.**
 5. Install jq: `apt install jq`.
-6. Modify the `Makefile` to fit your environment. In most cases, you need to change `GCC_ROOT :=` **in the `else` .. `endif` block** to your path of the extracted toolchain, and `export CC := ...` to `export CC := $(GCC_ROOT)aarch64-none-elf-gcc`.
-6. (continue. ) also, change `-machine` in `qemu_flags := ...` to `raspi3`, if QEMU reports something like `'raspi3b' is not a valid machine type`.
-7. A simple `make test` should be able to build and run Rarmo now. If it fails or gets stuck at compilation, try running `make clean` and `make test` again.
+6. Modify the `Makefile` to fit your environment. In most cases, you need to change `GCC_ROOT :=` **in the `else` ... `endif` block** to your path of the extracted toolchain, and `export CC := ...` to `export CC := $(GCC_ROOT)aarch64-none-elf-gcc`.
+7. (continue. ) also, change `-machine` in `qemu_flags := ...` to `raspi3`, if QEMU reports something like `'raspi3b' is not a valid machine type`.
+8. A simple `make test` should be able to build and run Rarmo now. If it fails or gets stuck at compilation, try running `make clean` and `make test` again.

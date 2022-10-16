@@ -108,7 +108,7 @@ pub fn user_proc_test() {
         assert!(kill(pid));
     }
     for _ in pids {
-        let (pid, code) = wait().unwrap();
+        let (_, code) = wait().unwrap();
         assert_eq!(code, -1);
     }
     println!("user proc test PASS");

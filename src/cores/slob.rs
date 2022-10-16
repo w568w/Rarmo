@@ -1,5 +1,4 @@
 use crate::aarch64::mmu::PAGE_SIZE;
-use crate::common::list::ListLink;
 use crate::common::{round_down, round_up};
 use crate::kernel::mem::{kalloc_page, kfree_page};
 use core::mem::size_of;

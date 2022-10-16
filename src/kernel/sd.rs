@@ -104,6 +104,6 @@ pub fn sd_interrupt_handler() {
      */
 }
 
-pub fn sd_rw(buf: *mut Buffer) {}
+pub fn sd_rw(_buf: *mut Buffer) {}
 
 // TODO sd_test

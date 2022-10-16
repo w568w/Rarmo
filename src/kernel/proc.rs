@@ -5,7 +5,7 @@ use crate::common::sem::Semaphore;
 use crate::define_init;
 use crate::kernel::{get_kernel_stack_bottom, kernel_entry, KERNEL_STACK_SIZE};
 use crate::kernel::mem::{kalloc_page, kfree_page};
-use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_zombie_no_lock, is_unused, is_unused_no_lock, activate_no_lock};
+use crate::kernel::sched::{activate, thisproc, SchInfo, proc_entry, try_thisproc, sched, acquire_sched_lock, is_zombie, is_unused_no_lock, activate_no_lock};
 use alloc::boxed::Box;
 use core::mem::MaybeUninit;
 use core::ptr;

@@ -1,7 +1,7 @@
 use crate::{common::{
     list::ListNode,
     Container,
-}, define_early_init, kernel::proc::{exit, KernelContext, Process, ProcessState}};
+}, define_early_init, kernel::proc::{KernelContext, Process, ProcessState}};
 use core::arch::global_asm;
 use core::assert_matches::assert_matches;
 use core::mem::MaybeUninit;

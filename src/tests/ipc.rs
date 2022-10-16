@@ -32,7 +32,7 @@ fn receiver(start: usize) {
     let start = start as i32;
     let msg_id = sys_msgget(114514, 0);
     assert!(msg_id >= 0);
-    for i in start..(start + 1000) {
+    for _ in start..(start + 1000) {
         let mut k: MaybeUninit<Msg> = MaybeUninit::uninit();
         assert!(sys_msgrcv(msg_id, unsafe { k.assume_init_mut().as_message_buffer() }, size_of::<Msg>() - size_of::<i32>(), 0, 0) >= 0);
         unsafe { MSG[k.assume_init_mut().mtype as usize] = k.assume_init_mut().sum; }
