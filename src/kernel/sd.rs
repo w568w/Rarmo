@@ -58,7 +58,7 @@ fn sd_start(buf: &Buffer) {
     let cmd_index = if write { IX_WRITE_SINGLE } else { IX_READ_SINGLE };
     put_u32(EMMC_BLKSIZECNT, 512);
     let resp = unsafe { sd_send_command_a(cmd_index, block_no) };
-    if resp != SD_OK {
+    if resp.is_err() {
         panic!("sd_start: sd_send_command_a failed");
     }
 
@@ -67,7 +67,7 @@ fn sd_start(buf: &Buffer) {
 
     if write {
         let resp = unsafe { sd_wait_for_interrupt(INT_WRITE_RDY) };
-        if resp != SD_OK {
+        if resp.is_err() {
             panic!("sd_start: sd_wait_for_interrupt timeout");
         }
         if get_u32(EMMC_INTERRUPT) != 0 {

@@ -15,6 +15,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 #![feature(default_alloc_error_handler)]
+#![feature(is_some_with)]
 extern crate alloc;
 
 mod cores;

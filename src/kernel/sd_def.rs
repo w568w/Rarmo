@@ -488,7 +488,7 @@ fn sd_delay_us(us: u32) {
     delay_us((us as u64) * 3);
 }
 
-pub fn sd_wait_for_interrupt(mask: u32) -> u32 {
+pub fn sd_wait_for_interrupt(mask: u32) -> Result<u32, u32> {
     let mut timeout = 1_000_000;
     let wait_mask = mask | INT_ERROR_MASK;
     while get_u32(EMMC_INTERRUPT) & wait_mask == 0 && timeout > 0 {
@@ -498,16 +498,16 @@ pub fn sd_wait_for_interrupt(mask: u32) -> u32 {
     let ival = get_u32(EMMC_INTERRUPT);
     if timeout <= 0 || (ival & INT_CMD_TIMEOUT) != 0 || (ival & INT_DATA_TIMEOUT) != 0 {
         put_u32(EMMC_INTERRUPT, ival);
-        return SD_TIMEOUT;
+        return Err(SD_TIMEOUT);
     } else if ival & INT_ERROR_MASK != 0 {
         put_u32(EMMC_INTERRUPT, ival);
-        return SD_ERROR;
+        return Err(SD_ERROR);
     }
     put_u32(EMMC_INTERRUPT, mask);
-    SD_OK
+    Ok(SD_OK)
 }
 
-fn sd_wait_for_command() -> u32 {
+fn sd_wait_for_command() -> Result<u32, u32> {
     let mut timeout = 1_000_000;
     while get_u32(EMMC_STATUS) & SR_CMD_INHIBIT != 0 &&
         get_u32(EMMC_INTERRUPT) & INT_ERROR_MASK == 0 &&
@@ -516,13 +516,13 @@ fn sd_wait_for_command() -> u32 {
         sd_delay_us(1);
     }
     if timeout <= 0 || get_u32(EMMC_INTERRUPT) & INT_ERROR_MASK != 0 {
-        SD_BUSY
+        Err(SD_BUSY)
     } else {
-        SD_OK
+        Ok(SD_OK)
     }
 }
 
-fn sd_wait_for_data() -> u32 {
+fn sd_wait_for_data() -> Result<u32, u32> {
     let mut timeout = 500_000;
     while get_u32(EMMC_STATUS) & SR_DAT_INHIBIT != 0 &&
         get_u32(EMMC_INTERRUPT) & INT_ERROR_MASK == 0 &&
@@ -531,17 +531,14 @@ fn sd_wait_for_data() -> u32 {
         sd_delay_us(1);
     }
     if timeout <= 0 || get_u32(EMMC_INTERRUPT) & INT_ERROR_MASK != 0 {
-        SD_BUSY
+        Err(SD_BUSY)
     } else {
-        SD_OK
+        Ok(SD_OK)
     }
 }
 
-unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> u32 {
-    let mut status = sd_wait_for_command();
-    if status != SD_OK {
-        return status;
-    }
+unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> Result<u32, u32> {
+    let mut status = sd_wait_for_command()?;
     SD_CARD.last_cmd = cmd;
     SD_CARD.last_arg = arg;
 
@@ -551,19 +548,19 @@ unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> u32 {
     if cmd.delay != 0 {
         sd_delay_us(cmd.delay);
     }
-    status = sd_wait_for_interrupt(INT_CMD_DONE);
-    if status != SD_OK {
-        return status;
-    }
+    status = sd_wait_for_interrupt(INT_CMD_DONE)?;
     let resp0 = get_u32(EMMC_RESP0);
     match cmd.resp {
         RESP_NO => {
-            return SD_OK;
+            return Ok(SD_OK);
         }
         RESP_R1 | RESP_R1B => {
             SD_CARD.status = resp0;
             SD_CARD.card_state = (resp0 & ST_CARD_STATE) >> R1_CARD_STATE_SHIFT;
-            return resp0 & R1_ERRORS_MASK;
+            return match resp0 & R1_ERRORS_MASK {
+                SD_OK => Ok(SD_OK),
+                code @ _ => Err(code),
+            };
         }
         RESP_R2I | RESP_R2S => {
             SD_CARD.status = 0;
@@ -576,12 +573,12 @@ unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> u32 {
             data[1] = get_u32(EMMC_RESP2);
             data[2] = get_u32(EMMC_RESP1);
             data[3] = resp0;
-            return SD_OK;
+            return Ok(SD_OK);
         }
         RESP_R3 => {
             SD_CARD.status = 0;
             SD_CARD.ocr = resp0;
-            return SD_OK;
+            return Ok(SD_OK);
         }
         RESP_R6 => {
             SD_CARD.rca = resp0 & R6_RCA_MASK;
@@ -593,41 +590,38 @@ unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> u32 {
                 |
                 ((resp0 & 0x00008000) << 8);
             SD_CARD.card_state = (resp0 & ST_CARD_STATE) >> R1_CARD_STATE_SHIFT;
-            return resp0 & R1_ERRORS_MASK;
+            return match resp0 & R1_ERRORS_MASK {
+                SD_OK => Ok(SD_OK),
+                code @ _ => Err(code),
+            };
         }
         RESP_R7 => {
             SD_CARD.status = 0;
             return if resp0 == arg {
-                SD_OK
+                Ok(SD_OK)
             } else {
-                SD_ERROR
+                Err(SD_ERROR)
             };
         }
         _ => unreachable!("Unknown response type"),
     };
 }
 
-unsafe fn sd_send_app_command() -> u32 {
+unsafe fn sd_send_app_command() -> Result<u32, u32> {
     if SD_CARD.rca == 0 {
-        sd_send_command_p(&SD_COMMAND_TABLE[IX_APP_CMD], 0);
+        let _ = sd_send_command_p(&SD_COMMAND_TABLE[IX_APP_CMD], 0);
     } else {
-        let resp = sd_send_command_p(&SD_COMMAND_TABLE[IX_APP_CMD_RCA], SD_CARD.rca);
-        if resp != SD_OK {
-            return resp;
-        }
+        let _ = sd_send_command_p(&SD_COMMAND_TABLE[IX_APP_CMD_RCA], SD_CARD.rca)?;
         if SD_CARD.status & ST_APP_CMD == 0 {
-            return SD_ERROR;
+            return Err(SD_ERROR);
         }
     }
-    SD_OK
+    Ok(SD_OK)
 }
 
-unsafe fn sd_send_command(index: usize) -> u32 {
+unsafe fn sd_send_command(index: usize) -> Result<u32, u32> {
     if index >= IX_APP_CMD_START {
-        let resp = sd_send_app_command();
-        if resp != SD_OK {
-            return resp;
-        }
+        let _ = sd_send_app_command()?;
     }
 
     let cmd = &SD_COMMAND_TABLE[index];
@@ -635,49 +629,34 @@ unsafe fn sd_send_command(index: usize) -> u32 {
     if cmd.rca == RCA_YES {
         arg = SD_CARD.rca;
     }
-    let resp = sd_send_command_p(cmd, arg);
-    if resp != SD_OK {
-        return resp;
-    }
+    let resp = sd_send_command_p(cmd, arg)?;
     if index >= IX_APP_CMD_START && SD_CARD.rca != 0 && SD_CARD.status & ST_APP_CMD == 0 {
-        return SD_ERROR_APP_CMD;
+        return Err(SD_ERROR);
     }
-    resp
+    Ok(resp)
 }
 
-pub unsafe fn sd_send_command_a(index: usize, arg: u32) -> u32 {
+pub unsafe fn sd_send_command_a(index: usize, arg: u32) -> Result<u32, u32> {
     if index >= IX_APP_CMD_START {
-        let resp = sd_send_app_command();
-        if resp != SD_OK {
-            return resp;
-        }
+        let _ = sd_send_app_command()?;
     }
 
     let cmd = &SD_COMMAND_TABLE[index];
-    let resp = sd_send_command_p(cmd, arg);
-    if resp != SD_OK {
-        return resp;
-    }
+    let resp = sd_send_command_p(cmd, arg)?;
     if index >= IX_APP_CMD_START && SD_CARD.rca != 0 && SD_CARD.status & ST_APP_CMD == 0 {
-        return SD_ERROR_APP_CMD;
+        return Err(SD_ERROR_APP_CMD);
     }
-    resp
+    Ok(resp)
 }
 
-unsafe fn sd_read_scr() -> u32 {
-    if sd_wait_for_data() != SD_OK {
-        return SD_TIMEOUT;
+unsafe fn sd_read_scr() -> Result<u32, u32> {
+    if sd_wait_for_data().is_err() {
+        return Err(SD_TIMEOUT);
     }
     put_u32(EMMC_BLKSIZECNT, (1 << 16) | 8);
-    let mut resp = sd_send_command(IX_SEND_SCR);
-    if resp != SD_OK {
-        return resp;
-    }
+    let mut resp = sd_send_command(IX_SEND_SCR)?;
 
-    resp = sd_wait_for_interrupt(INT_READ_RDY);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_wait_for_interrupt(INT_READ_RDY)?;
 
     let mut num_read = 0;
     let mut timeout = 100_000;
@@ -692,7 +671,7 @@ unsafe fn sd_read_scr() -> u32 {
     }
 
     if num_read != 2 {
-        return SD_TIMEOUT;
+        return Err(SD_TIMEOUT);
     }
 
     if SD_CARD.scr[0] & SCR_SD_BUS_WIDTH_4 != 0 { SD_CARD.support |= SD_SUPP_BUS_WIDTH_4; }
@@ -700,7 +679,7 @@ unsafe fn sd_read_scr() -> u32 {
     if SD_CARD.scr[0] & SCR_CMD_SUPP_SET_BLKCNT != 0 { SD_CARD.support |= SD_SUPP_SET_BLOCK_COUNT; }
     if SD_CARD.scr[0] & SCR_CMD_SUPP_SPEED_CLASS != 0 { SD_CARD.support |= SD_SUPP_SPEED_CLASS; }
 
-    SD_OK
+    Ok(SD_OK)
 }
 
 fn fls_long(mut x: u32) -> i32 {
@@ -765,14 +744,14 @@ unsafe fn sd_get_clock_divider(freq: u32) -> u32 {
     (lo << 8) + hi
 }
 
-unsafe fn sd_set_clock(freq: u32) -> u32 {
+unsafe fn sd_set_clock(freq: u32) -> Result<u32, u32> {
     let mut timeout = 100_000;
     while get_u32(EMMC_STATUS) & (SR_CMD_INHIBIT | SR_DAT_INHIBIT) != 0 && timeout > 0 {
         timeout -= 1;
         sd_delay_us(1);
     }
     if timeout <= 0 {
-        return SD_ERROR_CLOCK;
+        return Err(SD_ERROR_CLOCK);
     }
 
     let ctrl = get_u32(EMMC_CONTROL1);
@@ -794,12 +773,12 @@ unsafe fn sd_set_clock(freq: u32) -> u32 {
         sd_delay_us(10);
     }
     if timeout <= 0 {
-        return SD_ERROR_CLOCK;
+        return Err(SD_ERROR_CLOCK);
     }
-    SD_OK
+    Ok(SD_OK)
 }
 
-unsafe fn sd_reset_card(reset_type: u32) -> u32 {
+unsafe fn sd_reset_card(reset_type: u32) -> Result<u32, u32> {
     put_u32(EMMC_CONTROL0, 0);
     let ctrl = get_u32(EMMC_CONTROL1);
     put_u32(EMMC_CONTROL1, ctrl | reset_type);
@@ -811,17 +790,14 @@ unsafe fn sd_reset_card(reset_type: u32) -> u32 {
         sd_delay_us(10);
     }
     if timeout <= 0 {
-        return SD_ERROR_RESET;
+        return Err(SD_ERROR_RESET);
     }
 
     let ctrl = get_u32(EMMC_CONTROL1);
     put_u32(EMMC_CONTROL1, ctrl | C1_CLK_INTLEN | C1_TOUNIT_MAX);
     sd_delay_us(10);
 
-    let resp = sd_set_clock(FREQ_SETUP);
-    if resp != SD_OK {
-        return resp;
-    }
+    let _ = sd_set_clock(FREQ_SETUP)?;
 
     put_u32(EMMC_IRPT_EN, 0xffffffff & (!INT_CMD_DONE) & (!INT_WRITE_RDY));
     put_u32(EMMC_IRPT_MASK, 0xffffffff);
@@ -837,34 +813,34 @@ unsafe fn sd_reset_card(reset_type: u32) -> u32 {
     sd_send_command(IX_GO_IDLE_STATE)
 }
 
-unsafe fn sd_app_send_op_cond(arg: u32) -> u32 {
+unsafe fn sd_app_send_op_cond(arg: u32) -> Result<u32, u32> {
     let resp = sd_send_command_a(IX_APP_SEND_OP_COND, arg);
-    if resp != SD_OK && resp != SD_TIMEOUT {
+    if resp.is_err_and(|e| *e != SD_TIMEOUT) {
         return resp;
     }
     let mut count = 6;
     while SD_CARD.ocr & R3_COMPLETE == 0 && count > 0 {
         sd_delay_us(50_000);
         let resp = sd_send_command_a(IX_APP_SEND_OP_COND, arg);
-        if resp != SD_OK && resp != SD_TIMEOUT {
+        if resp.is_err_and(|e| *e != SD_TIMEOUT) {
             return resp;
         }
         count -= 1;
     }
 
     if SD_CARD.ocr & R3_COMPLETE == 0 {
-        return SD_TIMEOUT;
+        return Err(SD_TIMEOUT);
     }
 
     if SD_CARD.ocr & ACMD41_VOLTAGE == 0 {
-        return SD_ERROR_VOLTAGE;
+        return Err(SD_ERROR_VOLTAGE);
     }
 
-    SD_OK
+    Ok(SD_OK)
 }
 
-fn sd_switch_voltage() -> u32 {
-    SD_OK
+fn sd_switch_voltage() -> Result<u32,u32> {
+    Ok(SD_OK)
 }
 
 fn sd_init_gpio() {
@@ -903,15 +879,15 @@ fn sd_init_gpio() {
     put_u32(GPPUDCLK1, 0);
 }
 
-unsafe fn sd_get_base_clock() -> u32 {
+unsafe fn sd_get_base_clock() -> Result<u32, u32> {
     SD_BASE_CLOCK = get_clock_rate();
     if SD_BASE_CLOCK == u32::MAX {
-        return SD_ERROR;
+        return Err(SD_ERROR);
     }
-    SD_OK
+    Ok(SD_OK)
 }
 
-pub unsafe fn sd_init() -> u32 {
+pub unsafe fn sd_init() -> Result<u32, u32> {
     if !SD_CARD.init {
         sd_init_gpio();
     }
@@ -920,7 +896,7 @@ pub unsafe fn sd_init() -> u32 {
     let card_ejected = get_u32(GPEDS1) & (1 << 15);
     let mut old_cid: [u32; 4] = [0; 4];
     if card_absent != 0 {
-        return SD_CARD_ABSENT;
+        return Err(SD_CARD_ABSENT);
     }
 
     SD_CARD.absent = false;
@@ -933,30 +909,21 @@ pub unsafe fn sd_init() -> u32 {
     };
 
     if SD_CARD.init {
-        return SD_OK;
+        return Ok(SD_OK);
     }
 
     SD_HOST_VER = (get_u32(EMMC_SLOTISR_VER) & HOST_SPEC_NUM) >> HOST_SPEC_NUM_SHIFT;
 
-    let mut resp = sd_get_base_clock();
-    if resp != SD_OK {
-        return resp;
-    }
+    let mut resp = sd_get_base_clock()?;
 
-    resp = sd_reset_card(C1_SRST_HC);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_reset_card(C1_SRST_HC)?;
 
     dsb_sy();
-    resp = sd_send_command_a(IX_SEND_IF_COND, 0x1aa);
+    resp = sd_send_command_a(IX_SEND_IF_COND, 0x1aa).unwrap_or_else(|e| e);
     match resp {
         SD_OK => {
             delay_us(50);
-            let resp = sd_app_send_op_cond(ACMD41_ARG_HC);
-            if resp != SD_OK {
-                return resp;
-            }
+            let _ = sd_app_send_op_cond(ACMD41_ARG_HC)?;
             if SD_CARD.ocr & R3_CCS != 0 {
                 SD_CARD.typ = SD_TYPE_2_HC;
             } else {
@@ -964,83 +931,53 @@ pub unsafe fn sd_init() -> u32 {
             }
         }
         SD_BUSY => {
-            return resp;
+            return Err(resp);
         }
         _ => {
             if get_u32(EMMC_STATUS) & SR_DAT_INHIBIT != 0 {
-                let resp = sd_reset_card(C1_SRST_HC);
-                if resp != SD_OK {
-                    return resp;
-                }
+                let _ = sd_reset_card(C1_SRST_HC)?;
             }
-            let resp = sd_app_send_op_cond(ACMD41_ARG_SC);
-            if resp != SD_OK {
-                return resp;
-            }
+            let _ = sd_app_send_op_cond(ACMD41_ARG_SC)?;
             SD_CARD.typ = SD_TYPE_1;
         }
     };
 
     if SD_CARD.ocr & R3_S18A != 0 {
-        let resp = sd_switch_voltage();
-        if resp != SD_OK {
-            return resp;
-        }
+        let _ = sd_switch_voltage()?;
     }
 
-    resp = sd_send_command(IX_ALL_SEND_CID);
-    if resp != SD_OK {
-        return resp;
-    }
-
-    resp = sd_send_command(IX_SEND_CSD);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_send_command(IX_ALL_SEND_CID)?;
+    resp = sd_send_command(IX_SEND_REL_ADDR)?;
+    resp = sd_send_command(IX_SEND_CSD)?;
 
     sd_parse_csd();
 
     if SD_CARD.file_format != CSD3VN_FILE_FORMAT_DOSFAT && SD_CARD.file_format != CSD3VN_FILE_FORMAT_HDD {
-        return SD_ERROR;
+        return Err(SD_ERROR);
     }
 
-    resp = sd_set_clock(FREQ_NORMAL);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_set_clock(FREQ_NORMAL)?;
 
-    resp = sd_send_command(IX_CARD_SELECT);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_send_command(IX_CARD_SELECT)?;
 
-    resp = sd_read_scr();
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_read_scr()?;
 
     if SD_CARD.support & SD_SUPP_BUS_WIDTH_4 != 0 {
-        let resp = sd_send_command_a(IX_SET_BUS_WIDTH, SD_CARD.rca | 2);
-        if resp != SD_OK {
-            return resp;
-        }
+        let _ = sd_send_command_a(IX_SET_BUS_WIDTH, SD_CARD.rca | 2)?;
         let ctrl = get_u32(EMMC_CONTROL0);
         put_u32(EMMC_CONTROL0, ctrl | C0_HCTL_DWITDH);
     }
 
-    resp = sd_send_command_a(IX_SET_BLOCKLEN, 512);
-    if resp != SD_OK {
-        return resp;
-    }
+    resp = sd_send_command_a(IX_SET_BLOCKLEN, 512)?;
 
     sd_parse_cid();
 
     SD_CARD.init = true;
 
     if old_cid[0] != SD_CARD.cid[0] || old_cid[1] != SD_CARD.cid[1] || old_cid[2] != SD_CARD.cid[2] || old_cid[3] != SD_CARD.cid[3] {
-        SD_CARD_CHANGED
+        Ok(SD_CARD_CHANGED)
     } else {
-        SD_CARD_REINSERTED
+        Ok(SD_CARD_REINSERTED)
     }
 }
 
