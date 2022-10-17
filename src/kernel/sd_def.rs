@@ -25,7 +25,7 @@ pub const TM_DAT_DIR_CH: u32 = 0x00000010;
 pub const TM_AUTO_CMD23: u32 = 0x00000008;
 pub const TM_AUTO_CMD12: u32 = 0x00000004;
 pub const TM_BLKCNT_EN: u32 = 0x00000002;
-pub const TM_MULTI_DATA: u32 = (CMD_IS_DATA | TM_MULTI_BLOCK | TM_BLKCNT_EN);
+pub const TM_MULTI_DATA: u32 = CMD_IS_DATA | TM_MULTI_BLOCK | TM_BLKCNT_EN;
 
 // INTERRUPT register settings
 pub const INT_AUTO_ERROR: u32 = 0x01000000;
@@ -47,11 +47,11 @@ pub const INT_BLOCK_GAP: u32 = 0x00000004;
 pub const INT_DATA_DONE: u32 = 0x00000002;
 pub const INT_CMD_DONE: u32 = 0x00000001;
 pub const INT_ERROR_MASK: u32 =
-    (INT_CRC_ERROR | INT_END_ERROR | INT_INDEX_ERROR | INT_DATA_TIMEOUT |
-        INT_DATA_CRC_ERR | INT_DATA_END_ERR | INT_ERR | INT_AUTO_ERROR);
+    INT_CRC_ERROR | INT_END_ERROR | INT_INDEX_ERROR | INT_DATA_TIMEOUT |
+        INT_DATA_CRC_ERR | INT_DATA_END_ERR | INT_ERR | INT_AUTO_ERROR;
 pub const INT_ALL_MASK: u32 =
-    (INT_CMD_DONE | INT_DATA_DONE | INT_READ_RDY | INT_WRITE_RDY |
-        INT_ERROR_MASK);
+    INT_CMD_DONE | INT_DATA_DONE | INT_READ_RDY | INT_WRITE_RDY |
+        INT_ERROR_MASK;
 
 // CONTROL register settings
 pub const C0_SPI_MODE_EN: u32 = 0x00100000;
@@ -117,8 +117,8 @@ pub const ACMD41_SDXC_POWER: u32 = 0x10000000;
 pub const ACMD41_S18R: u32 = 0x01000000;
 pub const ACMD41_VOLTAGE: u32 = 0x00ff8000;
 pub const ACMD41_ARG_HC: u32 =
-    (ACMD41_HCS | ACMD41_SDXC_POWER | ACMD41_VOLTAGE | ACMD41_S18R);
-pub const ACMD41_ARG_SC: u32 = (ACMD41_VOLTAGE | ACMD41_S18R);
+    ACMD41_HCS | ACMD41_SDXC_POWER | ACMD41_VOLTAGE | ACMD41_S18R;
+pub const ACMD41_ARG_SC: u32 = ACMD41_VOLTAGE | ACMD41_S18R;
 
 // R1 (Status) values
 pub const ST_OUT_OF_RANGE: u32 = 0x80000000;
@@ -590,7 +590,7 @@ unsafe fn sd_send_command_p(cmd: &EMMCCommand, arg: u32) -> Result<u32, u32> {
                 |
                 ((resp0 & 0x00008000) << 8);
             SD_CARD.card_state = (resp0 & ST_CARD_STATE) >> R1_CARD_STATE_SHIFT;
-            return match resp0 & R1_ERRORS_MASK {
+            return match SD_CARD.card_state & R6_ERR_MASK {
                 SD_OK => Ok(SD_OK),
                 code @ _ => Err(code),
             };
@@ -1004,7 +1004,7 @@ unsafe fn sd_parse_cid() {
     // For some reason cards I have looked at seem to have the Y/M in
     // bits 11:0 whereas the spec says they should be in bits 19:8
     let date_y = ((SD_CARD.cid[3] & 0x00000ff0) >> 4) + 2000;
-    let date_m = (SD_CARD.cid[3] & 0x0000000f);
+    let date_m = SD_CARD.cid[3] & 0x0000000f;
 
     println!("CMMD: SD Card {}, {}Mb, UHS-I {}, mfr {}, '{}:{}' r{}.{} {}/{}, #{} RCA {}",
              SD_TYPE_NAME[SD_CARD.typ as usize], SD_CARD.capacity >> 20, SD_CARD.uhsi, man_id,
