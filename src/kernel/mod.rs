@@ -13,6 +13,7 @@ pub mod sched;
 pub mod syscall;
 pub mod sd_def;
 pub mod sd;
+pub mod mbr;
 
 pub static PANIC_FLAG: AtomicBool = AtomicBool::new(false);
 pub const KERNEL_STACK_SIZE: usize = 65536;
