@@ -219,5 +219,3 @@ pub fn sd_rw(buf: &mut Buffer) {
     drop(lock);
     buf.sleep.get_or_wait();
 }
-
-// TODO sd_test
