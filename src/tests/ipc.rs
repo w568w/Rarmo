@@ -16,25 +16,23 @@ impl AsMessageBuffer<Msg> for Msg {}
 
 fn sender(start: usize) {
     let start = start as i32;
-    let msg_id = sys_msgget(114514, 0);
-    assert!(msg_id >= 0);
+    let msg_id = sys_msgget(114514, 0).expect("msgget failed");
     for i in start..(start + 100) {
         let mut k = Box::new(Msg {
             mtype: i + 1,
             sum: -i - 1,
         });
-        assert!(sys_msgsend(msg_id, k.as_message_buffer(), size_of::<Msg>() - size_of::<i32>(), 0) >= 0);
+        sys_msgsend(msg_id, k.as_message_buffer(), size_of::<Msg>() - size_of::<i32>(), 0).expect("msgsend failed");
     }
     exit(0);
 }
 
 fn receiver(start: usize) {
     let start = start as i32;
-    let msg_id = sys_msgget(114514, 0);
-    assert!(msg_id >= 0);
+    let msg_id = sys_msgget(114514, 0).expect("msgget failed");
     for _ in start..(start + 1000) {
         let mut k: MaybeUninit<Msg> = MaybeUninit::uninit();
-        assert!(sys_msgrcv(msg_id, unsafe { k.assume_init_mut().as_message_buffer() }, size_of::<Msg>() - size_of::<i32>(), 0, 0) >= 0);
+        sys_msgrcv(msg_id, unsafe { k.assume_init_mut().as_message_buffer() }, size_of::<Msg>() - size_of::<i32>(), 0, 0).expect("msgrcv failed");
         unsafe { MSG[k.assume_init_mut().mtype as usize] = k.assume_init_mut().sum; }
     }
     exit(0);
@@ -43,7 +41,7 @@ fn receiver(start: usize) {
 #[test_case]
 pub fn ipc_test() {
     println!("ipc test");
-    let msg_id = sys_msgget(114514, IPC_CREATE | IPC_EXCL);
+    let msg_id = sys_msgget(114514, IPC_CREATE | IPC_EXCL).expect("msgget failed");
     for i in 0..100 {
         let proc = create_proc();
         start_proc(proc, sender as *const fn(usize), i * 100);
@@ -54,7 +52,7 @@ pub fn ipc_test() {
     }
     while wait().is_some() {}
 
-    assert!(sys_msgctl(msg_id, IPC_RMID) >= 0);
+    sys_msgctl(msg_id, IPC_RMID).expect("msgctl failed");
     for i in 1i32..10001 {
         assert_eq!(unsafe { MSG[i as usize] }, -i);
     }

@@ -153,7 +153,7 @@ define_early_init!(init_ipc);
 /// Add a message `queue` to the IPC ids.
 ///
 /// It will set the `seq` field of `queue` to the next available sequence number.
-fn ipc_add_id(queue: &mut MessageQueue) -> i32 {
+fn ipc_add_id(queue: &mut MessageQueue) -> Option<i32> {
     let msg_ids = unsafe { MSG_IDS.assume_init_mut() };
     msg_ids.entries.iter_mut().enumerate()
         .find(|(_, e)| e.is_null())
@@ -163,7 +163,7 @@ fn ipc_add_id(queue: &mut MessageQueue) -> i32 {
             msg_ids.seq += 1;
             *e = queue;
             i as i32
-        }).unwrap_or(-1)
+        })
 }
 
 const fn ipc_buildin(id: i32, seq: i32) -> i32 {
@@ -173,7 +173,7 @@ const fn ipc_buildin(id: i32, seq: i32) -> i32 {
 /// Create a message queue with the given `key` and add it to the IPC ids.
 ///
 /// Returns the allocated id for the message queue.
-fn new_queue(key: i32) -> i32 {
+fn new_queue(key: i32) -> Result<i32, i32> {
     let mut queue = Box::new(MessageQueue {
         key,
         seq: 0,
@@ -187,15 +187,12 @@ fn new_queue(key: i32) -> i32 {
     queue.q_sender.init();
     queue.q_receiver.init();
 
-    let id = ipc_add_id(queue.as_mut());
-    if id < 0 {
-        return ENOSEQ;
-    }
+    let id = ipc_add_id(queue.as_mut()).ok_or(ENOSEQ)?;
 
     let ret = ipc_buildin(id, queue.seq);
     let _ = Box::into_raw(queue);
 
-    ret
+    Ok(ret)
 }
 
 /// Get the message queue's id with the given `key`.
@@ -210,7 +207,7 @@ fn ipc_findkey(key: i32) -> Option<i32> {
 /// Get the message queue with the given `key`.
 ///
 /// Returns the message queue's id.
-pub fn sys_msgget(key: i32, msgflg: i32) -> i32 {
+pub fn sys_msgget(key: i32, msgflg: i32) -> Result<i32, i32> {
     let ipc_ids = unsafe { MSG_IDS.assume_init_mut() };
     let _lock = ipc_ids.lock.lock();
 
@@ -222,10 +219,10 @@ pub fn sys_msgget(key: i32, msgflg: i32) -> i32 {
     if let Some(id) = ipc_findkey(key) {
         // If a message queue with the given `key` exists
         return if msgflg & IPC_EXCL != 0 {
-            EEXIST
+            Err(EEXIST)
         } else {
             let queue = unsafe { &mut *ipc_ids.entries[id as usize] };
-            ipc_buildin(id, queue.seq)
+            Ok(ipc_buildin(id, queue.seq))
         };
     }
 
@@ -233,7 +230,7 @@ pub fn sys_msgget(key: i32, msgflg: i32) -> i32 {
     return if msgflg & IPC_CREATE != 0 {
         new_queue(key)
     } else {
-        ENOENT
+        Err(ENOENT)
     };
 }
 
@@ -314,14 +311,13 @@ fn test_msg(receive_type: i32, msg_type: i32) -> bool {
 /// Otherwise, return false.
 ///
 /// It will wake up all potential receivers before the first possible receiver.
-fn pipeline_send(queue: &mut MessageQueue, msg: *mut Message) -> bool {
+fn pipeline_send(queue: &mut MessageQueue, msg: &mut Message) -> bool {
     let mut ret = false;
     queue.q_receiver.iter::<MessageReceiver>(true).filter_inplace(|recv: &mut MessageReceiver| {
         // Only keep the receivers that can not receive this message
-        !test_msg(recv.mtype, unsafe { (*msg).mtype })
+        !test_msg(recv.mtype, msg.mtype )
     }, |recv: &mut MessageReceiver| {
         let proc = unsafe { &mut *recv.proc };
-        let msg = unsafe { &mut *msg };
         if msg.size > recv.size {
             // The receiver's buffer is too small to receive this message!
             recv.r_msg = ptr::null_mut();
@@ -343,14 +339,14 @@ fn pipeline_send(queue: &mut MessageQueue, msg: *mut Message) -> bool {
 /// Then, send the message to the message queue with the given `msg_id`.
 ///
 /// Return 0 on success, or a negative error code on failure.
-pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgflg: i32) -> i32 {
+pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgflg: i32) -> Result<i32, i32> {
     if msgp.mtype < 1 {
-        return EINVAL;
+        return Err(EINVAL);
     }
     // Create a new message in new pages
     let msg = load_msg(msgp.get_data_slice(msg_size));
     if msg.is_null() {
-        return ENOMEM;
+        return Err(ENOMEM);
     }
     let msg = unsafe { &mut *msg };
     msg.mtype = msgp.mtype;
@@ -362,7 +358,7 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
         let queue = get_msg_queue(msg_id);
         if queue.is_none() {
             drop_msg(msg);
-            return EIDRM;
+            return Err(EIDRM);
         }
         let queue = unsafe { &mut *queue.unwrap() };
         if queue.sum_msg + 1 > queue.max_msg {
@@ -370,7 +366,7 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
             if msgflg & IPC_NOWAIT != 0 {
                 // But we cannot wait, so we return EAGAIN
                 drop_msg(msg);
-                return EAGAIN;
+                return Err(EAGAIN);
             } else {
                 // Or we can wait, so we push the current process into the waiting queue
                 let mut sender = MessageSender::new(thisproc());
@@ -388,7 +384,7 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
                 queue.q_message.insert_at_last(msg);
                 queue.sum_msg += 1;
             }
-            return 0;
+            return Ok(0);
         }
     }
 }
@@ -440,16 +436,13 @@ fn store_msg(dst: *mut u8, msg: &mut Message, msg_size: usize) {
 /// Receive a message from the message queue with the given `msg_id`.
 ///
 /// Return the message size on success, or a negative error code on failure.
-pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mut mtype: i32, msgflg: i32) -> i32 {
+pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mut mtype: i32, msgflg: i32) -> Result<i32, i32> {
     let msg_ids = unsafe { MSG_IDS.assume_init_mut() };
     let lock = msg_ids.lock.lock();
 
-    let queue = get_msg_queue(msg_id);
-    if queue.is_none() {
-        return EIDRM;
-    }
+    let queue = get_msg_queue(msg_id).ok_or(EIDRM)?;
 
-    let queue = unsafe { &mut *queue.unwrap() };
+    let queue = unsafe { &mut *queue };
     let mut found_msg: *mut Message = ptr::null_mut();
 
     // Check the queue for the first possible message (or, the `-mtype`-th message if mtype < 0)
@@ -468,7 +461,7 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
         let found_msg = unsafe { &mut *found_msg };
         if found_msg.size > msg_size {
             // If the buffer is too small, we return E2BIG
-            return E2BIG;
+            return Err(E2BIG);
         }
         // This message is the one we want, so we detach it from the queue
         found_msg.link.detach();
@@ -480,7 +473,7 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
         // If we cannot find a message...
         if msgflg & IPC_NOWAIT != 0 {
             // If we cannot wait, we return ENOMSG
-            return ENOMSG;
+            return Err(ENOMSG);
         } else {
             // If we can wait, we push the current process into the waiting queue
             let mut receiver = MessageReceiver::new(thisproc(), mtype, msg_size);
@@ -494,7 +487,7 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
             found_msg = receiver.r_msg;
             if found_msg.is_null() {
                 // In `ss_wakeup`, if the message is too large, we set `r_msg` to null
-                return E2BIG;
+                return Err(E2BIG);
             }
         }
     }
@@ -508,7 +501,7 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
     // Drop the message
     drop_msg(found_msg);
     // Return the size of the message
-    msg_size as i32
+    Ok(msg_size as i32)
 }
 
 /// Empty out the message `queue`.
@@ -548,12 +541,12 @@ fn drop_queue(msg_id: i32) {
 /// Control the message queue with the given `msg_id`.
 ///
 /// Return 0 on success, or a negative error code on failure.
-pub fn sys_msgctl(msg_id: i32, cmd: i32) -> i32 {
+pub fn sys_msgctl(msg_id: i32, cmd: i32) -> Result<i32, i32> {
     match cmd {
         IPC_RMID => {
             drop_queue(msg_id);
-            0
+            Ok(0)
         }
-        _ => EINVAL
+        _ => Err(EINVAL)
     }
 }
