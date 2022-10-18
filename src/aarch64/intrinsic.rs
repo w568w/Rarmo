@@ -301,23 +301,6 @@ pub mod mbox {
     use crate::aarch64::intrinsic::{get_u32, put_u32};
     use crate::dsb_sy;
 
-    pub static mut MBOX: Aligned<A16, [u32; 36]> = Aligned([0; 36]);
-
-    pub unsafe fn call(channel: u8) -> bool {
-        let mbox_addr = &MBOX as *const Aligned<A16, [u32; 36]> as usize;
-        let channel_descriptor: usize = <u8 as Into<usize>>::into(channel) & 0xf;
-        let message_addr: u32 =
-            ((mbox_addr & (!0xf)) | channel_descriptor) as u32;
-        while get_u32(MBOX_STATUS) & MBOX_FULL != 0 {}
-        put_u32(MBOX_WRITE, message_addr);
-        loop {
-            while get_u32(MBOX_STATUS) & MBOX_EMPTY != 0 {}
-            if get_u32(MBOX_READ) == message_addr {
-                return MBOX[1] == MBOX_RESPONSE;
-            }
-        }
-    }
-
     pub fn write(buf_paddr: u32, channel: u8) {
         while get_u32(MBOX_STATUS) & MBOX_FULL != 0 {}
         dsb_sy();

@@ -133,7 +133,7 @@ fn sd_start(buf: &Buffer) {
     );
 
     if write {
-        let resp = unsafe { sd_wait_for_interrupt(INT_WRITE_RDY) };
+        let resp = sd_wait_for_interrupt(INT_WRITE_RDY);
         if resp.is_err() {
             panic!("sd_start: sd_wait_for_interrupt timeout");
         }

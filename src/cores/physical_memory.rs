@@ -69,13 +69,11 @@ impl BuddyPageAllocation {
             highest_order += 1;
         }
         let real_start = real_end - (1 << (highest_order - 1));
-        unsafe {
-            self.buddy = MaybeUninit::new(RawBuddies::new(
-                highest_order - 12,
-                real_start as *mut Page,
-                _physical2kernel_mut(start as *mut u8),
-            ));
-        }
+        self.buddy = MaybeUninit::new(RawBuddies::new(
+            highest_order - 12,
+            real_start as *mut Page,
+            _physical2kernel_mut(start as *mut u8),
+        ));
     }
 }
 
@@ -87,7 +85,7 @@ impl PhysicalMemoryTable for BuddyPageAllocation {
     }
 
     fn page_alloc(&mut self, num: usize) -> *mut u8 {
-        let mut buddy = unsafe { self.buddy.assume_init_mut() };
+        let buddy = unsafe { self.buddy.assume_init_mut() };
         let highest_order = round_up_to_2n(num);
         let (ret, _) = buddy.allocate(highest_order as usize).unwrap();
         ret as *mut u8
@@ -95,7 +93,7 @@ impl PhysicalMemoryTable for BuddyPageAllocation {
 
     fn page_free(&mut self, page_addr: *mut u8, num: usize) {
         let highest_order = round_up_to_2n(num);
-        let mut buddy = unsafe { self.buddy.assume_init_mut() };
+        let buddy = unsafe { self.buddy.assume_init_mut() };
         buddy.free(highest_order as usize, buddy.pos(highest_order as usize, page_addr as *mut Page));
     }
 }

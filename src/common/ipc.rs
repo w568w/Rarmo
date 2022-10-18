@@ -67,6 +67,7 @@ pub trait AsMessageBuffer<T> {
     }
 }
 
+#[repr(C)]
 pub struct MessageBuffer {
     mtype: i32,
 }
@@ -137,6 +138,10 @@ impl ListNode<ListLink> for MessageReceiver {
 
 static mut MSG_IDS: MaybeUninit<IPCIds> = MaybeUninit::uninit();
 
+fn msg_ids() -> &'static mut IPCIds {
+    unsafe { MSG_IDS.assume_init_mut() }
+}
+
 extern "C" fn init_ipc() {
     unsafe {
         MSG_IDS = MaybeUninit::new(IPCIds {
@@ -154,7 +159,7 @@ define_early_init!(init_ipc);
 ///
 /// It will set the `seq` field of `queue` to the next available sequence number.
 fn ipc_add_id(queue: &mut MessageQueue) -> Option<i32> {
-    let msg_ids = unsafe { MSG_IDS.assume_init_mut() };
+    let msg_ids = msg_ids();
     msg_ids.entries.iter_mut().enumerate()
         .find(|(_, e)| e.is_null())
         .map(|(i, e)| {
@@ -197,8 +202,7 @@ fn new_queue(key: i32) -> Result<i32, i32> {
 
 /// Get the message queue's id with the given `key`.
 fn ipc_findkey(key: i32) -> Option<i32> {
-    let ipc_ids = unsafe { MSG_IDS.assume_init_mut() };
-    ipc_ids.entries.iter_mut()
+    msg_ids().entries.iter_mut()
         .enumerate()
         .find(|(_, e)| !e.is_null() && unsafe { e.read().key } == key)
         .map(|(i, _)| i as i32)
@@ -208,7 +212,7 @@ fn ipc_findkey(key: i32) -> Option<i32> {
 ///
 /// Returns the message queue's id.
 pub fn sys_msgget(key: i32, msgflg: i32) -> Result<i32, i32> {
-    let ipc_ids = unsafe { MSG_IDS.assume_init_mut() };
+    let ipc_ids = msg_ids();
     let _lock = ipc_ids.lock.lock();
 
     if key == IPC_PRIVATE {
@@ -281,14 +285,15 @@ fn load_msg(mut src: &[u8]) -> *mut Message {
 /// Get the corresponding message queue with the given `msg_id`.
 ///
 /// Note: you should hold the lock of `MSG_IDS` before calling this function.
-fn get_msg_queue(msg_id: i32) -> Option<*mut MessageQueue> {
-    let ipc_ids = unsafe { MSG_IDS.assume_init_mut() };
+fn get_msg_queue(msg_id: i32) -> Option<&'static mut MessageQueue> {
+    let ipc_ids = msg_ids();
     let id = msg_id % SEQ_MULTIPLIER;
     if id < 0 || id >= ipc_ids.size || ipc_ids.entries[id as usize].is_null() {
         return None;
     }
     let queue = ipc_ids.entries[id as usize];
-    if unsafe { (*queue).seq } != msg_id / SEQ_MULTIPLIER {
+    let queue = unsafe { &mut *queue };
+    if queue.seq != msg_id / SEQ_MULTIPLIER {
         return None;
     }
     Some(queue)
@@ -313,9 +318,10 @@ fn test_msg(receive_type: i32, msg_type: i32) -> bool {
 /// It will wake up all potential receivers before the first possible receiver.
 fn pipeline_send(queue: &mut MessageQueue, msg: &mut Message) -> bool {
     let mut ret = false;
+    let mtype = msg.mtype;
     queue.q_receiver.iter::<MessageReceiver>(true).filter_inplace(|recv: &mut MessageReceiver| {
         // Only keep the receivers that can not receive this message
-        !test_msg(recv.mtype, msg.mtype )
+        !test_msg(recv.mtype, mtype)
     }, |recv: &mut MessageReceiver| {
         let proc = unsafe { &mut *recv.proc };
         if msg.size > recv.size {
@@ -352,15 +358,14 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
     msg.mtype = msgp.mtype;
     msg.size = msg_size;
 
-    let ipc_ids = unsafe { MSG_IDS.assume_init_mut() };
     loop {
-        let lock = ipc_ids.lock.lock();
+        let lock = msg_ids().lock.lock();
         let queue = get_msg_queue(msg_id);
         if queue.is_none() {
             drop_msg(msg);
             return Err(EIDRM);
         }
-        let queue = unsafe { &mut *queue.unwrap() };
+        let queue = queue.unwrap();
         if queue.sum_msg + 1 > queue.max_msg {
             // The queue is full, we need to wait!
             if msgflg & IPC_NOWAIT != 0 {
@@ -392,7 +397,7 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
 /// Pop up all the senders in the queue and wake them up.
 ///
 /// Note: after calling this function, the queue will be empty.
-fn wakeup_senders(mut head: &mut ListLink) {
+fn wakeup_senders(head: &mut ListLink) {
     head.iter::<MessageSender>(true).filter_inplace(|_| false, |sender: &mut MessageSender| {
         activate(unsafe { &mut *sender.proc });
         false
@@ -402,7 +407,7 @@ fn wakeup_senders(mut head: &mut ListLink) {
 /// Pop up all the receivers in the queue and wake them up.
 ///
 /// Note: after calling this function, the queue will be empty.
-fn wakeup_receivers(mut head: &mut ListLink) {
+fn wakeup_receivers(head: &mut ListLink) {
     head.iter::<MessageReceiver>(true).filter_inplace(|_| false, |receiver: &mut MessageReceiver| {
         receiver.r_msg = ptr::null_mut();
         activate(unsafe { &mut *receiver.proc });
@@ -437,12 +442,10 @@ fn store_msg(dst: *mut u8, msg: &mut Message, msg_size: usize) {
 ///
 /// Return the message size on success, or a negative error code on failure.
 pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mut mtype: i32, msgflg: i32) -> Result<i32, i32> {
-    let msg_ids = unsafe { MSG_IDS.assume_init_mut() };
-    let lock = msg_ids.lock.lock();
+    let lock = msg_ids().lock.lock();
 
     let queue = get_msg_queue(msg_id).ok_or(EIDRM)?;
 
-    let queue = unsafe { &mut *queue };
     let mut found_msg: *mut Message = ptr::null_mut();
 
     // Check the queue for the first possible message (or, the `-mtype`-th message if mtype < 0)
@@ -517,11 +520,10 @@ fn expunge_all(queue: &mut MessageQueue) {
 
 /// Drop the message queue with the given `msg_id`.
 fn drop_queue(msg_id: i32) {
-    let msg_ids = unsafe { MSG_IDS.assume_init_mut() };
+    let msg_ids = msg_ids();
     let _lock = msg_ids.lock.lock();
     let queue_ptr = get_msg_queue(msg_id);
-    if let Some(queue_ptr) = queue_ptr {
-        let queue = unsafe { &mut *queue_ptr };
+    if let Some(queue) = queue_ptr {
         // Remove the queue from `MSG_IDS`
         msg_ids.entries[(msg_id % SEQ_MULTIPLIER) as usize] = ptr::null_mut();
         // Wake up all the senders and receivers
@@ -534,7 +536,7 @@ fn drop_queue(msg_id: i32) {
         });
         msg_ids.in_use -= 1;
         // Drop the queue
-        unsafe { let _ = Box::from_raw(queue_ptr); }
+        unsafe { let _ = Box::from_raw(queue); }
     }
 }
 

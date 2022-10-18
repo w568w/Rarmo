@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::aarch64::intrinsic::addr::{GPFSEL0, GPFSEL1, GPPUD, GPPUDCLK0, GPPUDCLK1, MMIO_BASE};
-use crate::aarch64::intrinsic::mbox::{call, MBOX, MBOX_CH_PROP, MBOX_REQUEST, MBOX_TAG_LAST, MBOX_TAG_SETPOWER};
 use crate::aarch64::intrinsic::{delay_us, get_u32, put_u32};
+use crate::driver::mbox::set_power_state;
 
 const PM_RSTC: u64 = MMIO_BASE + 0x0010001c;
 const PM_RSTS: u64 = MMIO_BASE + 0x00100020;
@@ -12,17 +12,7 @@ const PM_RSTC_FULLRST: u32 = 0x00000020;
 // Shut down the QEMU machine.
 pub fn power_off() {
     for r in 0u32..16 {
-        unsafe {
-            MBOX[0] = 8 * 4;
-            MBOX[1] = MBOX_REQUEST;
-            MBOX[2] = MBOX_TAG_SETPOWER; // set power state
-            MBOX[3] = 8;
-            MBOX[4] = 8;
-            MBOX[5] = r;   // device id
-            MBOX[6] = 0;   // bit 0: off, bit 1: no wait
-            MBOX[7] = MBOX_TAG_LAST;
-            call(MBOX_CH_PROP);
-        }
+        set_power_state(r, 0);
     }
     // power off gpio pins (but not VCC pins)
     put_u32(GPFSEL0, 0);

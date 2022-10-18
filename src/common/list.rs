@@ -1,9 +1,26 @@
 use core::marker::PhantomData;
 use core::ptr;
+use crate::common::list::safe_link::{detach, is_single, link_of, next_of, set_next, set_prev};
 
 pub struct ListLink {
     pub prev: *mut ListLink,
     pub next: *mut ListLink,
+}
+
+pub fn map_not_null<T, F>(link: *mut T, f: F) -> *mut T
+    where F: FnOnce(&mut T) -> *mut T {
+    if link != ptr::null_mut() {
+        f(unsafe { &mut *link })
+    } else {
+        ptr::null_mut()
+    }
+}
+
+pub fn do_if_not_null<T, F>(link: *mut T, f: F)
+    where F: FnOnce(&mut T) {
+    if link != ptr::null_mut() {
+        f(unsafe { &mut *link })
+    }
 }
 
 pub trait ListNode<LinkType> {
@@ -27,6 +44,43 @@ pub trait ListNode<LinkType> {
     fn get_link_offset() -> usize;
 }
 
+mod safe_link {
+    use crate::common::list::{do_if_not_null, map_not_null};
+    use super::*;
+
+    pub(super) fn set_prev(link: *mut ListLink, prev: *mut ListLink) {
+        do_if_not_null(link, |link| link.prev = prev);
+    }
+
+    pub(super) fn set_next(link: *mut ListLink, next: *mut ListLink) {
+        do_if_not_null(link, |link| link.next = next);
+    }
+
+    pub(super) fn prev_of(link: *mut ListLink) -> *mut ListLink {
+        map_not_null(link, |link| link.prev)
+    }
+
+    pub(super) fn next_of(link: *mut ListLink) -> *mut ListLink {
+        map_not_null(link, |link| link.next)
+    }
+
+    pub(super) fn link_of<T: ListNode<ListLink>>(node: *mut T) -> *mut ListLink {
+        if node.is_null() {
+            ptr::null_mut()
+        } else {
+            unsafe { (*node).link_ptr() }
+        }
+    }
+
+    pub(super) fn is_single(link: *mut ListLink) -> bool {
+        !link.is_null() && link == next_of(link)
+    }
+
+    pub(super) fn detach(link: *mut ListLink) {
+        do_if_not_null(link, |link| link.detach());
+    }
+}
+
 impl ListLink {
     pub const fn uninit() -> Self {
         Self {
@@ -39,27 +93,23 @@ impl ListLink {
         self.prev = self;
     }
     pub fn insert_at_first<T: ListNode<ListLink>>(&mut self, node: *mut T) {
-        let node_link = unsafe { (*node).link_ptr() };
-        unsafe {
-            (*node_link).prev = self;
-            (*node_link).next = self.next;
-            (*(self.next)).prev = node_link;
-        }
-        self.next = node_link;
+        let node_link = link_of(node);
+        set_prev(node_link, self);
+        set_next(node_link, self.next);
+        set_prev(self.next, node_link);
+        set_next(self, node_link);
     }
 
     pub fn insert_at_last<T: ListNode<ListLink>>(&mut self, node: *mut T) {
-        unsafe { (*self.prev).insert_at_first(node) };
+        do_if_not_null(self.prev, |prev| prev.insert_at_first(node));
     }
 
     pub fn merge(&mut self, other: &mut ListLink) {
         let other_next = other.next;
         other.next = self.next;
         self.next = other_next;
-        unsafe {
-            (*(other.next)).prev = other;
-            (*(self.next)).prev = self;
-        }
+        set_prev(next_of(other), other);
+        set_prev(self.next, self);
     }
 
     pub fn is_single(&self) -> bool {
@@ -92,14 +142,8 @@ impl ListLink {
     }
 
     pub fn detach(&mut self) {
-        unsafe {
-            if !self.prev.is_null() {
-                (*(self.prev)).next = self.next;
-            }
-            if !self.next.is_null() {
-                (*(self.next)).prev = self.prev;
-            }
-        }
+        set_next(self.prev, self.next);
+        set_prev(self.next, self.prev);
         self.prev = self;
         self.next = self;
     }
@@ -133,7 +177,7 @@ impl<Container: ListNode<ListLink> + 'static> Iterator for LinkedListIterationIn
             return None;
         }
         // If `head` is the only element and we skip it, we should stop
-        if unsafe { (*(self.head)).is_single() } && self.skip_head {
+        if is_single(self.head) && self.skip_head {
             return None;
         }
 
@@ -141,11 +185,11 @@ impl<Container: ListNode<ListLink> + 'static> Iterator for LinkedListIterationIn
         self.has_walked_head = true;
         if self.skip_head {
             self.skip_head = false;
-            self.cur = unsafe { (*(self.cur)).next };
+            self.cur = next_of(self.cur);
         }
 
         let ret = Container::container(self.cur);
-        self.cur = unsafe { (*(self.cur)).next };
+        self.cur = next_of(self.cur);
         Some(ret)
     }
 }
@@ -167,23 +211,23 @@ impl<T: ListNode<ListLink> + 'static> InplaceFilter for LinkedListIterationInfo<
                 break;
             }
             // If `head` is the only element and we skip it, we should stop
-            if unsafe { (*(self.head)).is_single() } && self.skip_head {
+            if is_single(self.head) && self.skip_head {
                 break;
             }
             self.has_walked_head = true;
 
             if self.skip_head {
                 self.skip_head = false;
-                self.cur = unsafe { (*(self.cur)).next };
+                self.cur = next_of(self.cur);
             }
 
             let cur_container = T::container(self.cur);
-            let next = unsafe { (*(self.cur)).next };
+            let next = next_of(self.cur);
             if !f(cur_container) {
-                if unsafe { (*(self.cur)).is_single() } {
+                if is_single(self.cur) {
                     panic!("Trying to remove the last element of the list!");
                 }
-                unsafe { (*(self.cur)).detach() };
+                detach(self.cur);
                 if after_detach(T::container(self.cur)) {
                     return;
                 }

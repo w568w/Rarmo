@@ -29,24 +29,9 @@ pub struct RbTreeLink {
 // Provide some helper functions for `RbTreeLink` which can be safely invoked on a null pointer.
 mod safe_link {
     use core::ptr;
-    use crate::common::list::ListNode;
-    use crate::common::tree::{RbTree, RbTreeColor, RbTreeLink};
+    use crate::common::list::{do_if_not_null, ListNode, map_not_null};
+    use super::{RbTree, RbTreeColor, RbTreeLink};
 
-    fn map_not_null<F>(link: *mut RbTreeLink, f: F) -> *mut RbTreeLink
-        where F: FnOnce(&mut RbTreeLink) -> *mut RbTreeLink {
-        if link != ptr::null_mut() {
-            f(unsafe { &mut *link })
-        } else {
-            ptr::null_mut()
-        }
-    }
-
-    fn do_if_not_null<F>(link: *mut RbTreeLink, f: F)
-        where F: FnOnce(&mut RbTreeLink) {
-        if link != ptr::null_mut() {
-            f(unsafe { &mut *link })
-        }
-    }
 
     pub(super) fn left_rotate_if_possible<T: ListNode<RbTreeLink>>(parent: *mut RbTreeLink, tree: &mut RbTree<T>) {
         do_if_not_null(parent, |parent|

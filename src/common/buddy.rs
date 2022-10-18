@@ -27,7 +27,7 @@ impl<T> RawBuddies<T> {
     /// `data` is at least of length `2^num`. It may be uninitialized.
     /// `bits` is at least of length `2^num/8` (i.e it holds `2^num` bits). It
     /// must only contain `0`s (i.e `false`s).
-    pub unsafe fn new(num: usize, data: *mut T, bits: *mut u8) -> Self {
+    pub fn new(num: usize, data: *mut T, bits: *mut u8) -> Self {
         let mut s = Self {
             num,
             data,
