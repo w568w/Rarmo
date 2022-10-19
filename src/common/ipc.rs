@@ -65,6 +65,10 @@ pub trait AsMessageBuffer<T> {
     fn as_message_buffer(&mut self) -> &mut MessageBuffer {
         unsafe { &mut *(self as *mut _ as *mut MessageBuffer) }
     }
+
+    fn message_buffer_size() -> usize {
+        core::mem::size_of::<T>() - core::mem::size_of::<MessageBuffer>()
+    }
 }
 
 #[repr(C)]

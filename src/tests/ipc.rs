@@ -22,7 +22,7 @@ fn sender(start: usize) {
             mtype: i + 1,
             sum: -i - 1,
         });
-        sys_msgsend(msg_id, k.as_message_buffer(), size_of::<Msg>() - size_of::<i32>(), 0).expect("msgsend failed");
+        sys_msgsend(msg_id, k.as_message_buffer(), Msg::message_buffer_size(), 0).expect("msgsend failed");
     }
     exit(0);
 }
@@ -32,7 +32,7 @@ fn receiver(start: usize) {
     let msg_id = sys_msgget(114514, 0).expect("msgget failed");
     for _ in start..(start + 1000) {
         let mut k: MaybeUninit<Msg> = MaybeUninit::uninit();
-        sys_msgrcv(msg_id, unsafe { k.assume_init_mut().as_message_buffer() }, size_of::<Msg>() - size_of::<i32>(), 0, 0).expect("msgrcv failed");
+        sys_msgrcv(msg_id, unsafe { k.assume_init_mut().as_message_buffer() }, Msg::message_buffer_size(), 0, 0).expect("msgrcv failed");
         unsafe { MSG[k.assume_init_mut().mtype as usize] = k.assume_init_mut().sum; }
     }
     exit(0);
