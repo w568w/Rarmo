@@ -8,8 +8,8 @@ use crate::aarch64::kernel_pt::invalid_pt;
 use crate::aarch64::mmu::kernel2physical;
 use crate::driver::clock::{init_clock, set_clock_handler, reset_clock};
 use crate::kernel::proc::create_idle_process;
-use crate::kernel::sched::{start_idle_proc, Sched, preemptive_sched};
-use crate::{define_early_init, get_cpu_id};
+use crate::kernel::sched::{start_idle_proc, Sched, preemptive_sched, yield_};
+use crate::{define_early_init, get_cpu_id, println};
 use crate::common::list::ListNode;
 use crate::common::tree::{RbTree, RbTreeLink};
 
@@ -152,8 +152,15 @@ pub fn set_cpu_on() {
     get_cpu_info().sched.idle_proc = Some(idle_proc);
     start_idle_proc();
     // After initializing the IDLE process, the scheduler will be started.
-    let mut timer = Box::new(Timer::new(preemptive_sched, 0, 10));
+    let timer = Box::new(Timer::new(preemptive_sched, 0, 10));
     add_cpu_timer(Box::leak(timer));
+    let timer = Box::new(Timer::new(watch_dog, 0, 5000));
+    add_cpu_timer(Box::leak(timer));
+}
+
+pub fn watch_dog(timer: &mut Timer) {
+    add_cpu_timer(timer);
+    println!("CPU{}: Watch dog triggered!", get_cpu_id());
 }
 
 pub fn set_cpu_off() {
