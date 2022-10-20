@@ -111,7 +111,7 @@ pub fn user_proc_test() {
         let (_, code) = wait().unwrap();
         assert_eq!(code, -1);
     }
-    println!("user proc test PASS");
+    println!("user proc test: PASS");
     unsafe {
         for i in 0..CPU_CNT.len() {
             println!("cpu {}: cnt {}", i, CPU_CNT[i as usize]);

@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use core::mem::{MaybeUninit, size_of};
+use core::mem::MaybeUninit;
 use crate::common::ipc::{AsMessageBuffer, IPC_CREATE, IPC_EXCL, IPC_RMID, sys_msgctl, sys_msgget, sys_msgrcv, sys_msgsend};
 use crate::kernel::proc::{create_proc, exit, start_proc, wait};
 use crate::println;
