@@ -26,3 +26,14 @@ pub fn do_init() {
         start = unsafe { start.add(1) };
     }
 }
+
+pub fn do_rest_init() {
+    let mut start = rest_init as *const fn();
+    let end = init as *const fn();
+    while start != end {
+        unsafe {
+            (*start)();
+        }
+        start = unsafe { start.add(1) };
+    }
+}

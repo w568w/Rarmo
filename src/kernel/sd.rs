@@ -3,8 +3,8 @@ use crate::aarch64::intrinsic::{get_u32, put_u32};
 use crate::common::list::{ListLink, ListNode};
 use crate::common::sem::Semaphore;
 use crate::driver::interrupt::{set_interrupt_handler, InterruptType};
-use crate::kernel::sd_def::{sd_send_command_a, sd_wait_for_interrupt, INT_WRITE_RDY, IX_READ_SINGLE, IX_WRITE_SINGLE, SD_CARD, SD_TYPE_2_HC, INT_DATA_DONE};
-use crate::{dsb_sy, println};
+use crate::kernel::sd_def::{sd_send_command_a, sd_wait_for_interrupt, INT_WRITE_RDY, IX_READ_SINGLE, IX_WRITE_SINGLE, SD_CARD, SD_TYPE_2_HC};
+use crate::{define_rest_init, dsb_sy, println};
 use field_offset::offset_of;
 use spin::Mutex;
 
@@ -101,6 +101,7 @@ pub fn init_sd() {
     let mbr = MBR::parse(&buf.data);
     println!("MBR: {:?}", mbr);
 }
+define_rest_init!(init_sd);
 
 fn sd_start(buf: &Buffer) {
     let block_no = if unsafe { SD_CARD.typ } == SD_TYPE_2_HC {
@@ -170,14 +171,9 @@ pub fn sd_interrupt_handler() {
      * TODO: Lab5 driver.
      */
     let _lock = SD_LOCK.lock();
-    unsafe {
-        if BUF_QUEUE.is_single() {
-            return;
-        }
-    }
     let buf = unsafe { BUF_QUEUE.prev::<Buffer>().unwrap() };
     let mut done = false;
-    if buf.flags & B_DIRTY != 0 {
+    if (buf.flags & B_DIRTY) != 0 {
         done = true;
     } else if buf.flags & B_VALID == 0 {
         // Read data from EMMC

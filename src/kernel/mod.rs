@@ -3,8 +3,7 @@ use crate::aarch64::intrinsic::{disable_trap, enable_trap, wfi};
 use crate::kernel::cpu::set_cpu_on;
 use crate::kernel::sched::yield_;
 use crate::{get_cpu_id, set_cpu_off, stop_cpu};
-use crate::kernel::sd::init_sd;
-use crate::tests::sd::sd_test;
+use crate::kernel::init::do_rest_init;
 
 pub mod init;
 pub mod mem;
@@ -50,6 +49,17 @@ macro_rules! define_init {
 }
 
 #[macro_export]
+macro_rules! define_rest_init {
+    ($func:ident) => {
+        paste::paste! {
+            #[link_section = ".init.rest"]
+            #[no_mangle]
+            pub static mut [<__rest_init_ $func>] : *const () = $func as *const ();
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! define_syscall {
     ($syscall_id:expr, $func:ident) => {
         paste::paste! {
@@ -86,14 +96,12 @@ pub fn idle_entry() -> ! {
 }
 
 pub fn kernel_entry(_arg: usize) -> ! {
+    do_rest_init();
     #[cfg(test)]
     {
         use crate::run_test;
         run_test();
     }
-    init_sd();
-    unsafe { sd_test(); }
-    // todo: do_rest_init()
     loop {
         yield_();
     }

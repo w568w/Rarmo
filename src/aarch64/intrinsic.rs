@@ -296,7 +296,6 @@ pub mod mbox {
     pub const MBOX_TAG_GET_CLOCK_RATE: u32 = 0x00030002;
     pub const MBOX_TAG_LAST: u32 = 0;
 
-    use aligned::{A16, Aligned};
     use crate::aarch64::intrinsic::addr::{MBOX_READ, MBOX_STATUS, MBOX_WRITE};
     use crate::aarch64::intrinsic::{get_u32, put_u32};
     use crate::dsb_sy;
