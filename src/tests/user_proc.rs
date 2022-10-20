@@ -19,7 +19,7 @@ extern "C" {
 
 const BASE_ADDR: usize = 0x400000;
 
-static mut P: [*mut u8; 100] = [ptr::null_mut(); 100];
+static mut P: [*mut u8; 10000] = [ptr::null_mut(); 10000];
 
 #[test_case]
 pub fn vm_test() {
@@ -45,8 +45,8 @@ pub fn vm_test() {
     }
     pgdir.free();
     pgdir.attach();
-    for p in unsafe { P } {
-        kfree_page(p, 1);
+    for p in unsafe { P.iter() } {
+        kfree_page(*p, 1);
     }
     println!("vm_test PASS");
 }
