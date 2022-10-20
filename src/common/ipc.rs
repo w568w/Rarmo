@@ -103,11 +103,15 @@ struct MessageSender {
 }
 
 impl MessageSender {
-    fn new(proc: *mut Process) -> Self {
+    fn uninit(proc: *mut Process) -> Self {
         Self {
             proc,
             link: ListLink::uninit(),
         }
+    }
+
+    fn init(&mut self) {
+        self.link.init();
     }
 }
 
@@ -125,7 +129,7 @@ struct MessageReceiver {
 }
 
 impl MessageReceiver {
-    pub fn new(proc: *mut Process, mtype: i32, size: usize) -> Self {
+    pub const fn uninit(proc: *mut Process, mtype: i32, size: usize) -> Self {
         Self {
             proc,
             link: ListLink::uninit(),
@@ -133,6 +137,10 @@ impl MessageReceiver {
             size,
             r_msg: ptr::null_mut(),
         }
+    }
+
+    pub fn init(&mut self) {
+        self.link.init();
     }
 }
 
@@ -378,8 +386,8 @@ pub fn sys_msgsend(msg_id: i32, msgp: &mut MessageBuffer, msg_size: usize, msgfl
                 return Err(EAGAIN);
             } else {
                 // Or we can wait, so we push the current process into the waiting queue
-                let mut sender = MessageSender::new(thisproc());
-                sender.link.init();
+                let mut sender = MessageSender::uninit(thisproc());
+                sender.init();
                 queue.q_sender.insert_at_last(&mut sender);
                 let sched_lock = acquire_sched_lock();
                 drop(lock);
@@ -483,8 +491,8 @@ pub fn sys_msgrcv(msg_id: i32, msgp: &mut MessageBuffer, mut msg_size: usize, mu
             return Err(ENOMSG);
         } else {
             // If we can wait, we push the current process into the waiting queue
-            let mut receiver = MessageReceiver::new(thisproc(), mtype, msg_size);
-            receiver.link.init();
+            let mut receiver = MessageReceiver::uninit(thisproc(), mtype, msg_size);
+            receiver.init();
             queue.q_receiver.insert_at_last(&mut receiver);
             let sched_lock = acquire_sched_lock();
             drop(lock);

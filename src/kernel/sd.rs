@@ -41,18 +41,6 @@ impl Buffer {
         Self::uninit(B_DIRTY, block_no)
     }
 
-    pub fn write(block_no: u32) -> Self {
-        let mut ret = Self::write_uninit(block_no);
-        ret.init();
-        ret
-    }
-
-    pub fn read(block_no: u32) -> Self {
-        let mut ret = Self::read_uninit(block_no);
-        ret.init();
-        ret
-    }
-
     pub fn init(&mut self) {
         self.link.init();
         self.sleep.init();
@@ -96,7 +84,8 @@ pub fn init_sd() {
     set_interrupt_handler(InterruptType::IRQ_SDIO, sd_interrupt_handler);
     set_interrupt_handler(InterruptType::IRQ_ARASANSDIO, sd_interrupt_handler);
     drop(lock);
-    let mut buf = Buffer::read(0);
+    let mut buf = Buffer::read_uninit(0);
+    buf.init();
     sd_rw(&mut buf);
     let mbr = MBR::parse(&buf.data);
     println!("MBR: {:?}", mbr);
