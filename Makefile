@@ -91,6 +91,7 @@ export PRINTF := $(SYSBIN)printf
 export MKFS_VFAT := $(SYSBIN)mkfs.vfat
 export QEMU := $(QEMU_ROOT)$(QEMU_EXECUTABLE)
 export CC := $(GCC_ROOT)$(GCC_PREFIX)gcc
+export SYSTEM_CC := gcc
 ARCH_S_FILES := $(wildcard src/aarch64/*.S) $(wildcard src/*.S)
 ARCH_ASM_FILES := $(patsubst %.S,%.asm,$(ARCH_S_FILES))
 # -----------------
