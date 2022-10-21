@@ -265,12 +265,15 @@ impl VirtualMemoryPageTable for PageTableDirectory {
             let pte = current_page_table.get_mut(index as usize)?;
             if !pte.valid() {
                 if alloc_if_not_exist {
+                    pte.set_valid(true);
+                    pte.set_type(PageTableEntryType::TableOrPage);
+                    if level == 3 {
+                        return Some(pte);
+                    }
                     let new_page_table = kalloc_page(1) as *mut PageTable;
                     unsafe {
                         ptr::write_bytes(new_page_table, 0, 1);
                     }
-                    pte.set_valid(true);
-                    pte.set_type(PageTableEntryType::TableOrPage);
                     pte.set_addr(kernel2physical(new_page_table as u64) as usize, level);
                 } else {
                     return None;

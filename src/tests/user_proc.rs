@@ -39,7 +39,7 @@ pub fn vm_test() {
         for i in 0..P.len() {
             assert_eq!(((i << 12) as *const i32).read(), i as i32);
             let pte = pgdir.walk(i << 12, false).unwrap();
-            let addr = physical2kernel((*pte).addr(3) as u64) as *mut i32;
+            let addr = physical2kernel((*pte).addr(3) as u64) as *const i32;
             assert_eq!(addr.read(), i as i32);
         }
     }
