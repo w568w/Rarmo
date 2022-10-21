@@ -154,8 +154,8 @@ pub fn set_cpu_on() {
     // After initializing the IDLE process, the scheduler will be started.
     let timer = Box::new(Timer::new(preemptive_sched, 0, 10));
     add_cpu_timer(Box::leak(timer));
-    let timer = Box::new(Timer::new(watch_dog, 0, 5000));
-    add_cpu_timer(Box::leak(timer));
+    // let timer = Box::new(Timer::new(watch_dog, 0, 5000));
+    // add_cpu_timer(Box::leak(timer));
 }
 
 pub fn watch_dog(timer: &mut Timer) {
