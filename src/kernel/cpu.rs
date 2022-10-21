@@ -13,7 +13,7 @@ use crate::{define_early_init, get_cpu_id, println};
 use crate::common::list::ListNode;
 use crate::common::tree::{RbTree, RbTreeLink};
 
-const CPU_NUM: usize = 4;
+pub const CPU_NUM: usize = 4;
 
 pub struct Timer {
     triggered: bool,
@@ -131,6 +131,10 @@ define_early_init!(init_cpu_clock_handler);
 // It is safe because it only returns a reference to the *current* CPU's, not others'.
 pub fn get_cpu_info() -> &'static mut CPU {
     unsafe { &mut CPUS[get_cpu_id()] }
+}
+
+pub unsafe fn get_cpu_info_ref(cpu_id: usize) -> &'static CPU {
+    &mut CPUS[cpu_id]
 }
 
 extern "C" {

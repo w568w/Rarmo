@@ -4,13 +4,15 @@ use crate::{common::{
 }, define_early_init, kernel::proc::{KernelContext, Process, ProcessState}};
 use core::arch::global_asm;
 use core::assert_matches::assert_matches;
+use core::cmp::min;
 use core::mem::MaybeUninit;
+use core::sync::atomic::{AtomicU64, Ordering};
 use field_offset::offset_of;
 use spin::{Mutex, MutexGuard};
 use crate::aarch64::intrinsic::get_time_us;
 use crate::common::tree::{RbTree, RbTreeLink};
 use crate::cores::virtual_memory::VirtualMemoryPageTable;
-use crate::kernel::cpu::{add_cpu_timer, Timer};
+use crate::kernel::cpu::{add_cpu_timer, CPU_NUM, get_cpu_info_ref, Timer};
 use crate::kernel::proc::guard::check_guard_bits;
 
 use super::cpu::get_cpu_info;
@@ -21,6 +23,8 @@ pub struct Sched {
 }
 
 static mut RUN_QUEUE: MaybeUninit<RbTree<SchInfo>> = MaybeUninit::uninit();
+static MIN_VRUNTIME: AtomicU64 = AtomicU64::new(0);
+
 
 pub unsafe extern "C" fn init_run_queue() {
     RUN_QUEUE = MaybeUninit::new(RbTree::new(|a, b| {
@@ -142,6 +146,8 @@ pub fn activate(proc: &mut Process) {
 fn _activate(proc: &mut Process) {
     match proc.state {
         ProcessState::Unused | ProcessState::Sleeping => {
+            proc.sch_info.vruntime = MIN_VRUNTIME.load(Ordering::SeqCst);
+            proc.sch_info.start_time = 0;
             update_proc_state(proc, ProcessState::Runnable);
         }
         ProcessState::Runnable | ProcessState::Running => {}
@@ -238,12 +244,40 @@ fn update_this_state(state: ProcessState) {
     update_proc_state(thisproc(), state)
 }
 
+fn get_min_vruntime() -> u64 {
+    let mut valid = false;
+    let mut min_vruntime = u64::MAX;
+    let sch_info = unsafe { RUN_QUEUE.assume_init_mut().minimum() };
+    if let Some(sch_info) = sch_info {
+        min_vruntime = min(min_vruntime, sch_info.vruntime);
+        valid = true;
+    }
+    for i in 0..CPU_NUM {
+        unsafe {
+            if let Some(proc) = get_cpu_info_ref(i).sched.cur_proc {
+                let proc = unsafe { &mut *proc };
+                if proc.idle {
+                    continue;
+                }
+                min_vruntime = min(min_vruntime, proc.sch_info.vruntime);
+                valid = true;
+            }
+        }
+    }
+    if valid {
+        min_vruntime
+    } else {
+        0
+    }
+}
 
 fn stop_tick_and_update_vruntime(cur: &mut Process) {
     if cur.sch_info.start_time > 0 {
         let wall_time = get_time_us() - cur.sch_info.start_time;
         cur.sch_info.vruntime += wall_time / SCHED_PRIO_TO_WEIGHT[SCHED_MEDIUM_NICE] * SCHED_PRIO_TO_WEIGHT[cur.sch_info.nice];
     }
+    // Update the min vruntime.
+    MIN_VRUNTIME.store(get_min_vruntime(), Ordering::SeqCst);
 }
 
 fn start_tick(cur: &mut Process) {
